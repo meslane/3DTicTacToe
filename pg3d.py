@@ -15,7 +15,7 @@ class camera:
 |         |
 '''    
     
-class point:
+class point: #TODO overload = operator and other arithmetic ones
     def __init__(self, x, y, z):
         self.x = x
         self.y = y
@@ -72,42 +72,29 @@ class triangle:
         self.vectlist[1] = vector(self.pointlist[0], self.pointlist[2])
         self.vectlist[2] = vector(self.pointlist[1], self.pointlist[2])
     
-    '''    
-    def rotate(self, center, direction, angle): #TODO fix: objects don't seem to revolve around their COM if rotated about y (seems like x needs to be made negative?)
-        a = center.x
-        b = center.y
-        c = center.z
-        
-        u = direction[0]
-        v = direction[1]
-        w = direction[2]
-        
-        L = u ** 2 + v ** 2 + w ** 2
-        
-        for p in self.pointlist:
-            p.x = ((a * (v ** 2 + w ** 2) - u * (b * v + c * w - u * p.x - v * p.y - w * p.z)) * (1 - cos(angle)) + L * p.x * cos(angle) + sqrt(L) * (-c * v + b * w - w * p.y + v * p.z) * sin(angle))/L
-            p.y = ((b * (u ** 2 + w ** 2) - v * (a * u + c * w - u * p.x - v * p.y - w * p.z)) * (1 - cos(angle)) + L * p.y * cos(angle) + sqrt(L) * (c * u - a * w + w * p.x - u * p.z) * sin(angle))/L
-            p.z = ((c * (u ** 2 + v ** 2) - w * (a * u + b * v - u * p.x - v * p.y - w * p.z)) * (1 - cos(angle)) + L * p.z * cos(angle) + sqrt(L) * (-b * u - a * v - v * p.x + u * p.y) * sin(angle))/L
-            
-        self.vectlist[0] = vector(self.pointlist[0], self.pointlist[1])
-        self.vectlist[1] = vector(self.pointlist[0], self.pointlist[2])
-        self.vectlist[2] = vector(self.pointlist[1], self.pointlist[2])
-    '''
-    
     def rotateX(self, angle): #rotate about X-axis (requires translation to maintain position)
         for p in self.pointlist:
-            p.y = p.y * cos(angle) - p.z * sin(angle)
-            p.z = p.y * sin(angle) + p.z * cos(angle)
+            ny = float(p.y * cos(angle) - p.z * sin(angle))
+            nz = float(p.y * sin(angle) + p.z * cos(angle))
+            
+            p.y = ny
+            p.z = nz
             
     def rotateY(self, angle):
         for p in self.pointlist:
-            p.x = p.x * cos(angle) + p.z * sin(angle)
-            p.z = p.z * cos(angle) - p.x * sin(angle)
+            nx = float(p.x * cos(angle) + p.z * sin(angle))
+            nz = float(p.z * cos(angle) - p.x * sin(angle))
+            
+            p.x = nx
+            p.z = nz
             
     def rotateZ(self, angle):
         for p in self.pointlist:
-            p.x = p.x * cos(angle) - p.y * sin(angle)
-            p.y = p.x * sin(angle) + p.y * cos(angle)
+            nx = float(p.x * cos(angle) - p.y * sin(angle))
+            ny = float(p.x * sin(angle) + p.y * cos(angle))
+            
+            p.x = nx
+            p.y = ny
         
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
@@ -152,24 +139,6 @@ class object:
     def translate(self, offset): #offset should be a point object
         for t in self.tlist:
             t.move(offset)
-    
-    def rotateX(self, angle):
-        for t in self.tlist:
-            t.move(point(-self.com.x,-self.com.y,-self.com.z))
-            t.rotateX(angle)
-            t.move(point(self.com.x,self.com.y,self.com.z))
-            
-    def rotateY(self, angle):
-        for t in self.tlist:
-            t.move(point(-self.com.x,-self.com.y,-self.com.z))
-            t.rotateY(angle)
-            t.move(point(self.com.x,self.com.y,self.com.z))
-            
-    def rotateZ(self, angle):
-        for t in self.tlist:
-            t.move(point(-self.com.x,-self.com.y,-self.com.z))
-            t.rotateZ(angle)
-            t.move(point(self.com.x,self.com.y,self.com.z))
             
     def rotate(self, angles): #arg should be array or tuple of three values
         for t in self.tlist:
@@ -203,6 +172,8 @@ def main(argv):
     
     body = object([])
     body.readSTL(argv)
+    
+    body.rotate((radians(45),radians(45),radians(45)))
     
     run = True
     while run == True:
@@ -238,6 +209,9 @@ def main(argv):
                 elif event.key == pygame.K_f:
                     motionMatrix["vertical"] = -1 * mspeeed
                     
+                elif event.key == pygame.K_b:
+                    body.rotate([radians(90),0,0])
+                    
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_w:
                     motionMatrix["forward"] = 0
@@ -260,15 +234,14 @@ def main(argv):
         cam.position.z += motionMatrix["lateral"] * cos(cam.orientation[1] + radians(90))
         cam.position.y += motionMatrix["vertical"]
         
-        screen.fill((0,0.1,0)) #clear for next frame
+        screen.fill((0,0,0)) #clear for next frame
         
         #draw crosshair
         chsize = 15
         pygame.draw.line(screen, (255, 255, 255), (mxcenter - chsize, mycenter), (mxcenter + chsize, mycenter), 1)
         pygame.draw.line(screen, (255, 255, 255), (mxcenter, mycenter - chsize), (mxcenter, mycenter + chsize), 1)
         
-        #body.rotate(point(-45,50,10), [0, 0, 1], radians(0.1))
-        body.rotate((radians(0.1),radians(0.1),radians(0)))
+        #sbody.rotate((radians(5),radians(0),radians(0)))
         body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255))
         
         pygame.display.flip()
