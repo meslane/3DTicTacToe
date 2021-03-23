@@ -21,7 +21,7 @@ class point:
         self.y = y
         self.z = z
         
-    def project(self, camera): #project point onto 2d camera plane (this formula from wikipedia.org/wiki/3D_projection)
+    def project(self, camera, xoffset, yoffset): #project point onto 2d camera plane (this formula from wikipedia.org/wiki/3D_projection)
         cx, cy, cz = camera.position.x, camera.position.y, camera.position.z
         thx, thy, thz = camera.orientation[0], camera.orientation[1], camera.orientation[2]
         ex, ey, ez = camera.surface.x, camera.surface.y, camera.surface.z
@@ -37,7 +37,7 @@ class point:
         bx = (ez/dz) * dx + ex
         by = (ez/dz) * dy + ey
         
-        return (bx, by)
+        return (bx + xoffset, by + yoffset)
       
 class vector: #or line
     def __init__(self, p1, p2):
@@ -45,8 +45,8 @@ class vector: #or line
         self.p2 = p2
         
     def draw(self, camera, screen, xoffset, yoffset):
-        pr1 = self.p1.project(camera)
-        pr2 = self.p2.project(camera)
+        pr1 = self.p1.project(camera, 0, 0)
+        pr2 = self.p2.project(camera, 0, 0)
         pygame.draw.line(screen, (255, 255, 255), (pr1[0] + xoffset, pr1[1] + yoffset), (pr2[0] + xoffset, pr2[1] + yoffset), 1)
         
 class triangle:
@@ -71,8 +71,9 @@ class triangle:
         self.vectlist[0] = vector(self.pointlist[0], self.pointlist[1])
         self.vectlist[1] = vector(self.pointlist[0], self.pointlist[2])
         self.vectlist[2] = vector(self.pointlist[1], self.pointlist[2])
-        
-    def rotate(self, center, direction, angle):
+    
+    '''    
+    def rotate(self, center, direction, angle): #TODO fix: objects don't seem to revolve around their COM if rotated about y (seems like x needs to be made negative?)
         a = center.x
         b = center.y
         c = center.z
@@ -91,14 +92,34 @@ class triangle:
         self.vectlist[0] = vector(self.pointlist[0], self.pointlist[1])
         self.vectlist[1] = vector(self.pointlist[0], self.pointlist[2])
         self.vectlist[2] = vector(self.pointlist[1], self.pointlist[2])
+    '''
+    
+    def rotateX(self, angle): #rotate about X-axis (requires translation to maintain position)
+        for p in self.pointlist:
+            p.y = p.y * cos(angle) - p.z * sin(angle)
+            p.z = p.y * sin(angle) + p.z * cos(angle)
+            
+    def rotateY(self, angle):
+        for p in self.pointlist:
+            p.x = p.x * cos(angle) + p.z * sin(angle)
+            p.z = p.z * cos(angle) - p.x * sin(angle)
+            
+    def rotateZ(self, angle):
+        for p in self.pointlist:
+            p.x = p.x * cos(angle) - p.y * sin(angle)
+            p.y = p.x * sin(angle) + p.y * cos(angle)
         
-    def draw(self, camera, screen, xoffset, yoffset):
+    def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
             v.draw(camera, screen, xoffset, yoffset)
+            
+    def drawRaster(self, camera, screen, xoffset, yoffset, color): #draw triangle using pygame.draw.polygon()
+        pygame.draw.polygon(screen, color, [self.pointlist[0].project(camera, xoffset, yoffset), self.pointlist[1].project(camera, xoffset, yoffset), self.pointlist[2].project(camera, xoffset, yoffset)])
 
 class object:
     def __init__(self, triangles):
         self.tlist = triangles #list of triangles
+        self.com = point(0,0,0) #center of mass
         
     def readSTL(self, filename): #unpack stl file into object
         fdata = open(filename, 'rb').read()
@@ -110,18 +131,53 @@ class object:
             entry = struct.unpack('<ffffffffffffH', fdata[84 + 50*i:134 + 50*i])
             print(entry)
             self.tlist.append(triangle(point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11])))
+            self.com.x += (entry[3] + entry[6] + entry[9])
+            self.com.y += (entry[4] + entry[7] + entry[10])
+            self.com.z += (entry[5] + entry[8] + entry[11])
+            
+        self.com.x /= (psize[0] * 3)
+        self.com.y /= (psize[0] * 3)
+        self.com.z /= (psize[0] * 3)
+        
+        print(self.com.x, self.com.y, self.com.z)
     
-    def draw(self, camera, screen, xoffset, yoffset):
+    def drawWireframe(self, camera, screen, xoffset, yoffset):
         for t in self.tlist:
-            t.draw(camera, screen, xoffset, yoffset)
+            t.drawWireframe(camera, screen, xoffset, yoffset)
+            
+    def drawRaster(self, camera, screen, xoffset, yoffset, color):
+        for t in self.tlist:
+            t.drawRaster(camera, screen, xoffset, yoffset, color)
     
     def translate(self, offset): #offset should be a point object
         for t in self.tlist:
             t.move(offset)
-
-    def rotate(self, center, direction, angle):
+    
+    def rotateX(self, angle):
         for t in self.tlist:
-            t.rotate(center, direction, angle)
+            t.move(point(-self.com.x,-self.com.y,-self.com.z))
+            t.rotateX(angle)
+            t.move(point(self.com.x,self.com.y,self.com.z))
+            
+    def rotateY(self, angle):
+        for t in self.tlist:
+            t.move(point(-self.com.x,-self.com.y,-self.com.z))
+            t.rotateY(angle)
+            t.move(point(self.com.x,self.com.y,self.com.z))
+            
+    def rotateZ(self, angle):
+        for t in self.tlist:
+            t.move(point(-self.com.x,-self.com.y,-self.com.z))
+            t.rotateZ(angle)
+            t.move(point(self.com.x,self.com.y,self.com.z))
+            
+    def rotate(self, angles): #arg should be array or tuple of three values
+        for t in self.tlist:
+            t.move(point(-self.com.x,-self.com.y,-self.com.z)) #move center of mass to origin
+            t.rotateX(angles[0])
+            t.rotateY(angles[1])
+            t.rotateZ(angles[2])
+            t.move(point(self.com.x,self.com.y,self.com.z))
 
 def main(argv):
     pygame.init()
@@ -143,7 +199,7 @@ def main(argv):
         "rotational": 0
     }
     
-    mspeeed = 2
+    mspeeed = 0.5
     
     body = object([])
     body.readSTL(argv)
@@ -204,15 +260,16 @@ def main(argv):
         cam.position.z += motionMatrix["lateral"] * cos(cam.orientation[1] + radians(90))
         cam.position.y += motionMatrix["vertical"]
         
-        screen.fill((0,0,0)) #clear for next frame
+        screen.fill((0,0.1,0)) #clear for next frame
         
         #draw crosshair
         chsize = 15
         pygame.draw.line(screen, (255, 255, 255), (mxcenter - chsize, mycenter), (mxcenter + chsize, mycenter), 1)
         pygame.draw.line(screen, (255, 255, 255), (mxcenter, mycenter - chsize), (mxcenter, mycenter + chsize), 1)
         
-        body.rotate(point(0,0,0), [1, 1, 1], radians(0.1))
-        body.draw(cam, screen, mxcenter, mycenter)
+        #body.rotate(point(-45,50,10), [0, 0, 1], radians(0.1))
+        body.rotate((radians(0.1),radians(0.1),radians(0)))
+        body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255))
         
         pygame.display.flip()
 
