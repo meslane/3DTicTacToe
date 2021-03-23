@@ -9,6 +9,9 @@ class camera:
         self.orientation = orientation #angle
         self.surface = surface #film surface RELATIVE TO PINHOLE
         
+    def getCartOrientation(self):
+        return point(sin(self.orientation[1]) * cos(self.orientation[0]), sin(self.orientation[1]) * sin(self.orientation[0]), cos(self.orientation[1]))
+        
 '''
 |         |
 |   >*<   | surface
@@ -20,6 +23,32 @@ class point: #TODO overload = operator and other arithmetic ones
         self.x = x
         self.y = y
         self.z = z
+        
+    def __add__(self, other): #addition/subtraction operators
+        return point(self.x + other.x, self.y + other.y, self.z + other.z)
+        
+    def __sub__(self, other):
+        return point(self.x - other.x, self.y - other.y, self.z - other.z)
+        
+    def __truediv__(self, other): #overload operators for scalar multiplication/division
+        return point(self.x / other, self.y / other, self.z / other)
+        
+    def __mul__(self, other):
+        return point(self.x * other, self.y * other, self.z * other)
+        
+    def __imul__(self, other):
+        self.x *= other
+        self.y *= other
+        self.z *= other
+        
+        return self
+        
+    def __itruediv__(self, other):
+        self.x /= other
+        self.y /= other
+        self.z /= other
+        
+        return self
         
     def project(self, camera, xoffset, yoffset): #project point onto 2d camera plane (this formula from wikipedia.org/wiki/3D_projection)
         cx, cy, cz = camera.position.x, camera.position.y, camera.position.z
@@ -37,7 +66,7 @@ class point: #TODO overload = operator and other arithmetic ones
         bx = (ez/dz) * dx + ex
         by = (ez/dz) * dy + ey
         
-        return (bx + xoffset, by + yoffset)
+        return (xoffset - bx, by + yoffset)
       
 class vector: #or line
     def __init__(self, p1, p2):
@@ -50,7 +79,8 @@ class vector: #or line
         pygame.draw.line(screen, (255, 255, 255), (pr1[0] + xoffset, pr1[1] + yoffset), (pr2[0] + xoffset, pr2[1] + yoffset), 1)
         
 class triangle:
-    def __init__(self, p1, p2, p3):
+    def __init__(self, normal, p1, p2, p3):
+        self.normal = normal #surface normal vector
         self.pointlist = []
         self.vectlist = []
         
@@ -73,6 +103,7 @@ class triangle:
         self.vectlist[2] = vector(self.pointlist[1], self.pointlist[2])
     
     def rotateX(self, angle): #rotate about X-axis (requires translation to maintain position)
+        self.normal = point(self.normal.x, float(self.normal.y * cos(angle) - self.normal.z * sin(angle)), float(self.normal.y * sin(angle) + self.normal.z * cos(angle)))
         for p in self.pointlist:
             ny = float(p.y * cos(angle) - p.z * sin(angle))
             nz = float(p.y * sin(angle) + p.z * cos(angle))
@@ -81,6 +112,7 @@ class triangle:
             p.z = nz
             
     def rotateY(self, angle):
+        self.normal = point(float(self.normal.x * cos(angle) + self.normal.z * sin(angle)), self.normal.y, float(self.normal.z * cos(angle) - self.normal.x * sin(angle)))
         for p in self.pointlist:
             nx = float(p.x * cos(angle) + p.z * sin(angle))
             nz = float(p.z * cos(angle) - p.x * sin(angle))
@@ -89,23 +121,37 @@ class triangle:
             p.z = nz
             
     def rotateZ(self, angle):
+        self.normal = point(float(self.normal.x * cos(angle) - self.normal.y * sin(angle)), float(self.normal.x * sin(angle) + self.normal.y * cos(angle)), self.normal.z)
         for p in self.pointlist:
             nx = float(p.x * cos(angle) - p.y * sin(angle))
             ny = float(p.x * sin(angle) + p.y * cos(angle))
             
             p.x = nx
             p.y = ny
-        
+    
+    def facingCamera(self, camera):
+        ccart = camera.getCartOrientation()
+        if (self.normal.x * ccart.x) + (self.normal.y * ccart.y) + (self.normal.z * ccart.z) < 0: #if dot product is negative
+            return True
+        else:
+            return False
+    
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
             v.draw(camera, screen, xoffset, yoffset)
             
-    def drawRaster(self, camera, screen, xoffset, yoffset, color): #draw triangle using pygame.draw.polygon()
-        pygame.draw.polygon(screen, color, [self.pointlist[0].project(camera, xoffset, yoffset), self.pointlist[1].project(camera, xoffset, yoffset), self.pointlist[2].project(camera, xoffset, yoffset)])
+    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull): #draw triangle using pygame.draw.polygon()
+        numdrawn = 0
+    
+        if self.facingCamera(camera) or cull == False:
+            pygame.draw.polygon(screen, color, [self.pointlist[0].project(camera, xoffset, yoffset), self.pointlist[1].project(camera, xoffset, yoffset), self.pointlist[2].project(camera, xoffset, yoffset)])
+            numdrawn += 1
+            
+        return numdrawn
 
 class object:
-    def __init__(self, triangles):
-        self.tlist = triangles #list of triangles
+    def __init__(self):
+        self.tlist = [] #list of triangles in body
         self.com = point(0,0,0) #center of mass
         
     def readSTL(self, filename): #unpack stl file into object
@@ -117,14 +163,12 @@ class object:
         for i in range(psize[0]):
             entry = struct.unpack('<ffffffffffffH', fdata[84 + 50*i:134 + 50*i])
             print(entry)
-            self.tlist.append(triangle(point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11])))
+            self.tlist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11])))
             self.com.x += (entry[3] + entry[6] + entry[9])
             self.com.y += (entry[4] + entry[7] + entry[10])
             self.com.z += (entry[5] + entry[8] + entry[11])
-            
-        self.com.x /= (psize[0] * 3)
-        self.com.y /= (psize[0] * 3)
-        self.com.z /= (psize[0] * 3)
+        
+        self.com /= (psize[0] * 3)
         
         print(self.com.x, self.com.y, self.com.z)
     
@@ -132,11 +176,16 @@ class object:
         for t in self.tlist:
             t.drawWireframe(camera, screen, xoffset, yoffset)
             
-    def drawRaster(self, camera, screen, xoffset, yoffset, color):
+    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull):
+        numdrawn = 0
+    
         for t in self.tlist:
-            t.drawRaster(camera, screen, xoffset, yoffset, color)
+            numdrawn += t.drawRaster(camera, screen, xoffset, yoffset, color, cull)
+            
+        return numdrawn
     
     def translate(self, offset): #offset should be a point object
+        self.com = self.com + offset #move center of mass with offset
         for t in self.tlist:
             t.move(offset)
             
@@ -146,7 +195,7 @@ class object:
             t.rotateX(angles[0])
             t.rotateY(angles[1])
             t.rotateZ(angles[2])
-            t.move(point(self.com.x,self.com.y,self.com.z))
+            t.move(point(self.com.x,self.com.y,self.com.z)) #move back
 
 def main(argv):
     pygame.init()
@@ -156,10 +205,9 @@ def main(argv):
     pygame.mouse.set_visible(False)
     pygame.event.set_grab(True)
     
-    cam = camera(point(0,0, -200), [0,0,0], point(0,0,-1000)) #camera object
+    pfont = pygame.font.SysFont("Consolas", 14)
     
-    points = []
-    vects = []
+    cam = camera(point(0,0, -200), [0,0,0], point(0,0,1000)) #camera object
 
     motionMatrix = { # 1 = in direction, -1 opposite direction, 0 = no motion
         "forward": 0,
@@ -170,10 +218,15 @@ def main(argv):
     
     mspeeed = 0.5
     
-    body = object([])
-    body.readSTL(argv)
+    blist = []
     
-    body.rotate((radians(45),radians(45),radians(45)))
+    for n in range(0, len(argv) - 1):
+        blist.append(object())
+        blist[n].readSTL(argv[n + 1])
+        blist[n].rotate((radians(-90),0,0))
+
+    
+    #body.rotate((radians(-90),0,0))
     
     run = True
     while run == True:
@@ -186,7 +239,7 @@ def main(argv):
         if m[0] != 0: #if the mouse moved, move camera
             cam.orientation[1] -= radians(m[0]/10)
         if m[1] != 0:
-            cam.orientation[0] += radians(m[1]/10)
+            cam.orientation[0] -= radians(m[1]/10)
         
     
         for event in pygame.event.get(): #pygame event detection
@@ -205,12 +258,9 @@ def main(argv):
                 elif event.key == pygame.K_d:
                     motionMatrix["lateral"] = -1 * mspeeed
                 elif event.key == pygame.K_r:
-                    motionMatrix["vertical"] = 1 * mspeeed
-                elif event.key == pygame.K_f:
                     motionMatrix["vertical"] = -1 * mspeeed
-                    
-                elif event.key == pygame.K_b:
-                    body.rotate([radians(90),0,0])
+                elif event.key == pygame.K_f:
+                    motionMatrix["vertical"] = 1 * mspeeed
                     
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_w:
@@ -241,10 +291,22 @@ def main(argv):
         pygame.draw.line(screen, (255, 255, 255), (mxcenter - chsize, mycenter), (mxcenter + chsize, mycenter), 1)
         pygame.draw.line(screen, (255, 255, 255), (mxcenter, mycenter - chsize), (mxcenter, mycenter + chsize), 1)
         
-        #sbody.rotate((radians(5),radians(0),radians(0)))
-        body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255))
+        cacoords = pfont.render("({}, {}, {})".format(cam.orientation[0], cam.orientation[1], cam.orientation[2]),True, (255,255,255))
+        cccoords = pfont.render("({}, {}, {})".format(cam.getCartOrientation().x, cam.getCartOrientation().y, cam.getCartOrientation().z),True, (255,255,255))
+        cloc = pfont.render("({}, {}, {})".format(cam.position.x, cam.position.y, cam.position.z),True, (255,255,255))
+        screen.blit(cacoords, (10, 10))
+        screen.blit(cccoords, (10, 30))
+        screen.blit(cloc, (10, 50))
         
+        numdrawn = 0
+        for body in blist:
+            body.rotate((radians(0.5),radians(0.5),radians(0.5)))
+            
+            numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), True)
+            #body.drawWireframe(cam, screen, mxcenter, mycenter)
+        
+        print(numdrawn)
         pygame.display.flip()
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv)
