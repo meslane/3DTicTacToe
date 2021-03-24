@@ -9,7 +9,7 @@ class camera:
         self.orientation = orientation #angle
         self.surface = surface #film surface RELATIVE TO PINHOLE
         
-    def getCartOrientation(self):
+    def getCartOrientation(self): #This works fine I think
         return point(sin(self.orientation[1]) * cos(self.orientation[0]), sin(self.orientation[1]) * sin(self.orientation[0]), cos(self.orientation[1]))
         
 '''
@@ -129,9 +129,9 @@ class triangle:
             p.x = nx
             p.y = ny
     
-    def facingCamera(self, camera):
+    def facingCamera(self, camera): #TODO: fix
         ccart = camera.getCartOrientation()
-        if (self.normal.x * ccart.x) + (self.normal.y * ccart.y) + (self.normal.z * ccart.z) < 0: #if dot product is negative
+        if (self.normal.x * ccart.x) + (self.normal.y * ccart.y) + (self.normal.z * ccart.z) <= 0: #if dot product is negative
             return True
         else:
             return False
@@ -142,9 +142,19 @@ class triangle:
             
     def drawRaster(self, camera, screen, xoffset, yoffset, color, cull): #draw triangle using pygame.draw.polygon()
         numdrawn = 0
+        
+        ppoints = []
+        insideView = False
+        ssize = screen.get_size()
+        
+        for p in self.pointlist:
+            ppoints.append(p.project(camera, xoffset, yoffset))
+            if (ppoints[-1][0] > 0 and ppoints[-1][1] > 0) and (ppoints[-1][0] < ssize[0] and ppoints[-1][1] < ssize[1]):
+                insideView = True
+            
     
-        if self.facingCamera(camera) or cull == False:
-            pygame.draw.polygon(screen, color, [self.pointlist[0].project(camera, xoffset, yoffset), self.pointlist[1].project(camera, xoffset, yoffset), self.pointlist[2].project(camera, xoffset, yoffset)])
+        if (self.facingCamera(camera) or cull == False) and insideView == True: #draw if not culled and in the camera's FOV
+            pygame.draw.polygon(screen, color, [ppoints[0], ppoints[1], ppoints[2]])
             numdrawn += 1
             
         return numdrawn
@@ -300,7 +310,7 @@ def main(argv):
         
         numdrawn = 0
         for body in blist:
-            body.rotate((radians(0.5),radians(0.5),radians(0.5)))
+            body.rotate((radians(0),radians(0),radians(0)))
             
             numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), True)
             #body.drawWireframe(cam, screen, mxcenter, mycenter)
