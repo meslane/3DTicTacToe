@@ -36,6 +36,13 @@ class point: #TODO overload = operator and other arithmetic ones
     def __mul__(self, other):
         return point(self.x * other, self.y * other, self.z * other)
         
+    def __iadd__(self, other):
+        self.x += other.x
+        self.y += other.y
+        self.z += other.z
+        
+        return self
+        
     def __imul__(self, other):
         self.x *= other
         self.y *= other
@@ -165,20 +172,45 @@ class object:
         self.com = point(0,0,0) #center of mass
         
     def readSTL(self, filename): #unpack stl file into object
-        fdata = open(filename, 'rb').read()
-        psize = struct.unpack('I', fdata[80:84]) #eat up header and get number of triangles
-    
-        print(psize)
-    
-        for i in range(psize[0]):
-            entry = struct.unpack('<ffffffffffffH', fdata[84 + 50*i:134 + 50*i])
-            print(entry)
-            self.tlist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11])))
-            self.com.x += (entry[3] + entry[6] + entry[9])
-            self.com.y += (entry[4] + entry[7] + entry[10])
-            self.com.z += (entry[5] + entry[8] + entry[11])
+        flines = open(filename, 'r').readlines()
         
-        self.com /= (psize[0] * 3)
+        print(flines[0])
+        
+        normal = point(0,0,0)
+        points = []
+        psize = 0
+        if "solid" in str(flines[0]): #if ASCII file
+            for l in flines: 
+                if "facet normal" in l:
+                    n = l.split()
+                    normal = point(float(n[2]), float(n[3]), float(n[4]))
+                elif "vertex" in l:
+                    v = l.split()
+                    p = point(float(v[1]), float(v[2]), float(v[3]))
+                    points.append(p)
+                    self.com += p
+                elif "endfacet" in l:
+                    self.tlist.append(triangle(normal, points[0], points[1], points[2]))
+                    points.clear()
+                    psize += 1
+                    
+            self.com /= (psize * 3)
+    
+        else: #if binary instead
+            fdata = open(filename, 'rb').read()
+            psize = struct.unpack('I', fdata[80:84]) #eat up header and get number of triangles
+        
+            print(psize)
+        
+            for i in range(psize[0]):
+                entry = struct.unpack('<ffffffffffffH', fdata[84 + 50*i:134 + 50*i])
+                print(entry)
+                self.tlist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11])))
+                self.com.x += (entry[3] + entry[6] + entry[9])
+                self.com.y += (entry[4] + entry[7] + entry[10])
+                self.com.z += (entry[5] + entry[8] + entry[11])
+        
+            self.com /= (psize[0] * 3)
         
         print(self.com.x, self.com.y, self.com.z)
     
@@ -312,11 +344,11 @@ def main(argv):
         for body in blist:
             body.rotate((radians(0),radians(0),radians(0)))
             
-            numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), True)
+            numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), False)
             #body.drawWireframe(cam, screen, mxcenter, mycenter)
         
         print(numdrawn)
         pygame.display.flip()
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main(sys.argv);
