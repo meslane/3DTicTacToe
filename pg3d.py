@@ -3,6 +3,17 @@ from math import *
 import struct
 import sys
 
+def averageOfPoints(points):
+    result = point(0,0,0)
+    
+    for p in points:
+        result += p
+        
+    return result / len(points)
+    
+def dotProduct(a, b):
+    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
+
 class camera:
     def __init__(self, position, orientation, surface):
         self.position = position #pinhole
@@ -40,6 +51,13 @@ class point: #TODO overload = operator and other arithmetic ones
         self.x += other.x
         self.y += other.y
         self.z += other.z
+        
+        return self
+        
+    def __isub__(self, other):
+        self.x -= other.x
+        self.y -= other.y
+        self.z -= other.z
         
         return self
         
@@ -136,18 +154,21 @@ class triangle:
             p.x = nx
             p.y = ny
     
-    def facingCamera(self, camera): #TODO: fix
+    def facingCamera(self, camera):
         ccart = camera.getCartOrientation()
-        if (self.normal.x * ccart.x) + (self.normal.y * ccart.y) + (self.normal.z * ccart.z) <= 0: #if dot product is negative
+        if dotProduct(self.normal, ccart) <= 0: #if dot product is negative, surface should be visable
             return True
         else:
             return False
+            
+    def getCOM(self): #get center of mass
+        return averageOfPoints(self.pointlist)
     
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
             v.draw(camera, screen, xoffset, yoffset)
             
-    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull): #draw triangle using pygame.draw.polygon()
+    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull, shader): #draw triangle using pygame.draw.polygon()
         numdrawn = 0
         
         ppoints = []
@@ -159,8 +180,16 @@ class triangle:
             if (ppoints[-1][0] > 0 and ppoints[-1][1] > 0) and (ppoints[-1][0] < ssize[0] and ppoints[-1][1] < ssize[1]):
                 insideView = True
             
-    
         if (self.facingCamera(camera) or cull == False) and insideView == True: #draw if not culled and in the camera's FOV
+            if (shader != None): #apply shader
+                scalar = -cos(shader.getAngle(self))
+                
+                if (scalar < 0.5):
+                    scalar = 0.5
+                
+                color = (floor(color[0] * scalar), floor(color[0] * scalar), floor(color[0] * scalar))
+                #print(color)
+            
             pygame.draw.polygon(screen, color, [ppoints[0], ppoints[1], ppoints[2]])
             numdrawn += 1
             
@@ -172,7 +201,10 @@ class object:
         self.com = point(0,0,0) #center of mass
         
     def readSTL(self, filename): #unpack stl file into object
-        flines = open(filename, 'r').readlines()
+        try:
+            flines = open(filename, 'r').readlines()
+        except UnicodeDecodeError:
+            flines = [""]
         
         print(flines[0])
         
@@ -218,11 +250,11 @@ class object:
         for t in self.tlist:
             t.drawWireframe(camera, screen, xoffset, yoffset)
             
-    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull):
+    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull, shader):
         numdrawn = 0
     
         for t in self.tlist:
-            numdrawn += t.drawRaster(camera, screen, xoffset, yoffset, color, cull)
+            numdrawn += t.drawRaster(camera, screen, xoffset, yoffset, color, cull, shader)
             
         return numdrawn
     
@@ -238,6 +270,17 @@ class object:
             t.rotateY(angles[1])
             t.rotateZ(angles[2])
             t.move(point(self.com.x,self.com.y,self.com.z)) #move back
+
+class pointSource: #point source of light for shading
+    def __init__(self, pos):
+        self.pos = pos #point object
+        
+    def getAngle(self, triangle): #get angle between surface normal and point source
+        dv = triangle.getCOM() - self.pos
+        n = triangle.normal
+        
+        return acos(dotProduct(n, dv)/(sqrt(dotProduct(dv, dv)) * sqrt(dotProduct(n, n)))) #return angle
+    
 
 def main(argv):
     pygame.init()
@@ -269,6 +312,8 @@ def main(argv):
 
     
     #body.rotate((radians(-90),0,0))
+    
+    light = pointSource(point(10000, 0, 0))
     
     run = True
     while run == True:
@@ -344,7 +389,7 @@ def main(argv):
         for body in blist:
             body.rotate((radians(0),radians(0),radians(0)))
             
-            numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), False)
+            numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), True, light)
             #body.drawWireframe(cam, screen, mxcenter, mycenter)
         
         print(numdrawn)
