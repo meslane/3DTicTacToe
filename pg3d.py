@@ -13,6 +13,9 @@ def averageOfPoints(points):
     
 def dotProduct(a, b):
     return (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
+    
+def distance(a, b):
+    return sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2)
 
 class camera:
     def __init__(self, position, orientation, surface):
@@ -20,9 +23,12 @@ class camera:
         self.orientation = orientation #angle
         self.surface = surface #film surface RELATIVE TO PINHOLE
         
+    def getDistance(self, p):
+        return distance(self.position, p)
+        
     def getCartOrientation(self): #This works fine I think
         return point(sin(self.orientation[1]) * cos(self.orientation[0]), sin(self.orientation[1]) * sin(self.orientation[0]), cos(self.orientation[1]))
-        
+ 
 '''
 |         |
 |   >*<   | surface
@@ -113,15 +119,17 @@ class triangle:
         self.pointlist.append(p2)
         self.pointlist.append(p3)
         
+        self.com = averageOfPoints(self.pointlist) #center of mass
+        
         self.vectlist.append(vector(p1, p2))
         self.vectlist.append(vector(p1, p3))
         self.vectlist.append(vector(p2, p3))
         
     def move(self, offset):
         for p in self.pointlist:
-            p.x += offset.x
-            p.y += offset.y
-            p.z += offset.z
+            p += offset
+            
+        self.com += offset
             
         self.vectlist[0] = vector(self.pointlist[0], self.pointlist[1])
         self.vectlist[1] = vector(self.pointlist[0], self.pointlist[2])
@@ -136,6 +144,8 @@ class triangle:
             p.y = ny
             p.z = nz
             
+        self.getcom()
+            
     def rotateY(self, angle):
         self.normal = point(float(self.normal.x * cos(angle) + self.normal.z * sin(angle)), self.normal.y, float(self.normal.z * cos(angle) - self.normal.x * sin(angle)))
         for p in self.pointlist:
@@ -145,6 +155,8 @@ class triangle:
             p.x = nx
             p.z = nz
             
+        self.getcom()
+            
     def rotateZ(self, angle):
         self.normal = point(float(self.normal.x * cos(angle) - self.normal.y * sin(angle)), float(self.normal.x * sin(angle) + self.normal.y * cos(angle)), self.normal.z)
         for p in self.pointlist:
@@ -153,6 +165,8 @@ class triangle:
             
             p.x = nx
             p.y = ny
+        
+        self.getcom()
     
     def facingCamera(self, camera):
         ccart = camera.getCartOrientation()
@@ -161,8 +175,10 @@ class triangle:
         else:
             return False
             
-    def getCOM(self): #get center of mass
-        return averageOfPoints(self.pointlist)
+    def getcom(self): #get center of mass
+        self.com = averageOfPoints(self.pointlist)
+        return self.com
+        
     
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
@@ -276,11 +292,44 @@ class pointSource: #point source of light for shading
         self.pos = pos #point object
         
     def getAngle(self, triangle): #get angle between surface normal and point source
-        dv = triangle.getCOM() - self.pos
+        dv = triangle.getcom() - self.pos
         n = triangle.normal
         
         return acos(dotProduct(n, dv)/(sqrt(dotProduct(dv, dv)) * sqrt(dotProduct(n, n)))) #return angle
-    
+        
+class scene:
+    def __init__(self, screen, camera, objects, lightSource):
+        self.screen = screen
+        self.camera = camera
+        self.objects = objects
+        self.lightSource = lightSource
+        self.polygons = []
+        
+    def drawPaintedRaster(self, cull): #painter's algorithm
+        numdrawn = 0
+        
+        for object in self.objects:
+            for tri in object.tlist:
+                tdistance = self.camera.getDistance(tri.com)
+                
+                if len(self.polygons) == 0:
+                    self.polygons.append(tri)
+                else:
+                    for i in range(len(self.polygons)):
+                        if tdistance > self.camera.getDistance(self.polygons[i].com):
+                            self.polygons.insert(i, tri) #insert inorder based on distance to camera
+                            break
+                        elif i == len(self.polygons) - 1:
+                            self.polygons.append(tri)
+                     
+                        
+        for polygon in self.polygons: #draw in order after storting 
+            #print(self.camera.getDistance(polygon.com))
+            numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), (255, 255, 255), False, self.lightSource)
+        
+        self.polygons.clear()
+        
+        return numdrawn
 
 def main(argv):
     pygame.init()
@@ -314,6 +363,8 @@ def main(argv):
     #body.rotate((radians(-90),0,0))
     
     light = pointSource(point(10000, 0, 0))
+    
+    s = scene(screen, cam, blist, light)
     
     run = True
     while run == True:
@@ -364,12 +415,12 @@ def main(argv):
                     motionMatrix["vertical"] = 0
             
         #apply camera translation
-        cam.position.z += motionMatrix["forward"] * cos(cam.orientation[1])
-        cam.position.x += motionMatrix["forward"] * sin(cam.orientation[1])
-        cam.position.y -= motionMatrix["forward"] * sin(cam.orientation[0])
-        cam.position.x += motionMatrix["lateral"] * sin(cam.orientation[1] + radians(90))
-        cam.position.z += motionMatrix["lateral"] * cos(cam.orientation[1] + radians(90))
-        cam.position.y += motionMatrix["vertical"]
+        s.camera.position.z += motionMatrix["forward"] * cos(cam.orientation[1])
+        s.camera.position.x += motionMatrix["forward"] * sin(cam.orientation[1])
+        s.camera.position.y -= motionMatrix["forward"] * sin(cam.orientation[0])
+        s.camera.position.x += motionMatrix["lateral"] * sin(cam.orientation[1] + radians(90))
+        s.camera.position.z += motionMatrix["lateral"] * cos(cam.orientation[1] + radians(90))
+        s.camera.position.y += motionMatrix["vertical"]
         
         screen.fill((0,0,0)) #clear for next frame
         
@@ -385,14 +436,19 @@ def main(argv):
         screen.blit(cccoords, (10, 30))
         screen.blit(cloc, (10, 50))
         
+        '''
         numdrawn = 0
         for body in blist:
             body.rotate((radians(0),radians(0),radians(0)))
             
             numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), True, light)
             #body.drawWireframe(cam, screen, mxcenter, mycenter)
+        '''
         
-        print(numdrawn)
+        for body in s.objects:
+            body.rotate((radians(0),radians(0),radians(0)))
+        
+        print(s.drawPaintedRaster(False))
         pygame.display.flip()
 
 if __name__ == "__main__":
