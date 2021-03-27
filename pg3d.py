@@ -2,6 +2,7 @@ import pygame
 from math import *
 import struct
 import sys
+import time
 
 def averageOfPoints(points):
     result = point(0,0,0)
@@ -112,6 +113,7 @@ class vector: #or line
 class triangle:
     def __init__(self, normal, p1, p2, p3):
         self.normal = normal #surface normal vector
+        self.distance = 0 #scalar distance to camera objet for painter's algorithm
         self.pointlist = []
         self.vectlist = []
         
@@ -175,11 +177,14 @@ class triangle:
         else:
             return False
             
-    def getcom(self): #get center of mass
+    def getcom(self): #set center of mass
         self.com = averageOfPoints(self.pointlist)
         return self.com
         
-    
+    def getDistance(self, camera): #set distance to camera
+        self.distance = distance(camera.position, self.com)
+        return self.distance
+        
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
             v.draw(camera, screen, xoffset, yoffset)
@@ -198,13 +203,12 @@ class triangle:
             
         if (self.facingCamera(camera) or cull == False) and insideView == True: #draw if not culled and in the camera's FOV
             if (shader != None): #apply shader
-                scalar = -cos(shader.getAngle(self))
+                scalar = -(cos(shader.getAngle(self)) / 2) + 0.5
                 
-                if (scalar < 0.5):
+                if scalar < 0.5:
                     scalar = 0.5
-                
+                    
                 color = (floor(color[0] * scalar), floor(color[0] * scalar), floor(color[0] * scalar))
-                #print(color)
             
             pygame.draw.polygon(screen, color, [ppoints[0], ppoints[1], ppoints[2]])
             numdrawn += 1
@@ -305,24 +309,17 @@ class scene:
         self.lightSource = lightSource
         self.polygons = []
         
+    
     def drawPaintedRaster(self, cull): #painter's algorithm
         numdrawn = 0
         
         for object in self.objects:
             for tri in object.tlist:
-                tdistance = self.camera.getDistance(tri.com)
+                tri.getDistance(self.camera)
+                self.polygons.append(tri)
                 
-                if len(self.polygons) == 0:
-                    self.polygons.append(tri)
-                else:
-                    for i in range(len(self.polygons)):
-                        if tdistance > self.camera.getDistance(self.polygons[i].com):
-                            self.polygons.insert(i, tri) #insert inorder based on distance to camera
-                            break
-                        elif i == len(self.polygons) - 1:
-                            self.polygons.append(tri)
+        self.polygons.sort(key = lambda x: x.distance, reverse = True) #python's sort method is faster than inorder insertion
                      
-                        
         for polygon in self.polygons: #draw in order after storting 
             #print(self.camera.getDistance(polygon.com))
             numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), (255, 255, 255), False, self.lightSource)
@@ -341,7 +338,7 @@ def main(argv):
     
     pfont = pygame.font.SysFont("Consolas", 14)
     
-    cam = camera(point(0,0, -200), [0,0,0], point(0,0,1000)) #camera object
+    cam = camera(point(0,0, -75), [0,0,0], point(0,0,1000)) #camera object
 
     motionMatrix = { # 1 = in direction, -1 opposite direction, 0 = no motion
         "forward": 0,
@@ -362,12 +359,16 @@ def main(argv):
     
     #body.rotate((radians(-90),0,0))
     
-    light = pointSource(point(10000, 0, 0))
+    light = pointSource(point(0, -100000, 0))
     
     s = scene(screen, cam, blist, light)
     
+    fps = 0
+    
     run = True
     while run == True:
+        startloop = time.time()
+    
         mxcenter = int(screen.get_width()/2)
         mycenter = int(screen.get_height()/2)
         pygame.mouse.set_pos(mxcenter,mycenter)
@@ -424,32 +425,29 @@ def main(argv):
         
         screen.fill((0,0,0)) #clear for next frame
         
+        cacoords = pfont.render("({}, {}, {})".format(cam.orientation[0], cam.orientation[1], cam.orientation[2]),True, (255,255,255))
+        cccoords = pfont.render("({}, {}, {})".format(cam.getCartOrientation().x, cam.getCartOrientation().y, cam.getCartOrientation().z),True, (255,255,255))
+        cloc = pfont.render("({}, {}, {})".format(cam.position.x, cam.position.y, cam.position.z),True, (255,255,255))
+        frames = pfont.render("{} fps".format(round(fps,0)),True, (255,255,255))
+        screen.blit(cacoords, (10, 10))
+        screen.blit(cccoords, (10, 30))
+        screen.blit(cloc, (10, 50))
+        screen.blit(frames, (10, 70))
+        
+        for body in s.objects:
+            body.rotate((radians(0.5),radians(0.5),radians(0.5)))
+        
+        print(s.drawPaintedRaster(False))
+        
         #draw crosshair
         chsize = 15
         pygame.draw.line(screen, (255, 255, 255), (mxcenter - chsize, mycenter), (mxcenter + chsize, mycenter), 1)
         pygame.draw.line(screen, (255, 255, 255), (mxcenter, mycenter - chsize), (mxcenter, mycenter + chsize), 1)
         
-        cacoords = pfont.render("({}, {}, {})".format(cam.orientation[0], cam.orientation[1], cam.orientation[2]),True, (255,255,255))
-        cccoords = pfont.render("({}, {}, {})".format(cam.getCartOrientation().x, cam.getCartOrientation().y, cam.getCartOrientation().z),True, (255,255,255))
-        cloc = pfont.render("({}, {}, {})".format(cam.position.x, cam.position.y, cam.position.z),True, (255,255,255))
-        screen.blit(cacoords, (10, 10))
-        screen.blit(cccoords, (10, 30))
-        screen.blit(cloc, (10, 50))
-        
-        '''
-        numdrawn = 0
-        for body in blist:
-            body.rotate((radians(0),radians(0),radians(0)))
-            
-            numdrawn += body.drawRaster(cam, screen, mxcenter, mycenter, (255, 255, 255), True, light)
-            #body.drawWireframe(cam, screen, mxcenter, mycenter)
-        '''
-        
-        for body in s.objects:
-            body.rotate((radians(0),radians(0),radians(0)))
-        
-        print(s.drawPaintedRaster(False))
         pygame.display.flip()
+        
+        print("{}ms".format((time.time() - startloop) * 100))
+        fps = 1/(time.time() - startloop)
 
 if __name__ == "__main__":
     main(sys.argv);
