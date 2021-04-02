@@ -3,6 +3,7 @@ from math import *
 import struct
 import sys
 import time
+import random
 
 def averageOfPoints(points):
     result = point(0,0,0)
@@ -29,14 +30,8 @@ class camera:
         
     def getCartOrientation(self): #This works fine I think
         return point(sin(self.orientation[1]) * cos(self.orientation[0]), sin(self.orientation[1]) * sin(self.orientation[0]), cos(self.orientation[1]))
- 
-'''
-|         |
-|   >*<   | surface
-|         |
-'''    
-    
-class point: #TODO overload = operator and other arithmetic ones
+
+class point: #general 3D coordinate
     def __init__(self, x, y, z):
         self.x = x
         self.y = y
@@ -110,33 +105,26 @@ class vector: #or line
         pr2 = self.p2.project(camera, 0, 0)
         pygame.draw.line(screen, (255, 255, 255), (pr1[0] + xoffset, pr1[1] + yoffset), (pr2[0] + xoffset, pr2[1] + yoffset), 1)
         
-class triangle:
-    def __init__(self, normal, p1, p2, p3):
-        self.normal = normal #surface normal vector
-        self.distance = 0 #scalar distance to camera objet for painter's algorithm
-        self.pointlist = []
-        self.vectlist = []
+class polygon:
+    def __init__(self, normal, pointlist, color):
+        self.normal = normal
+        self.distace = 0 #scalar distance to camera objet for painter's algorithm
+        self.pointlist = pointlist
         
-        self.pointlist.append(p1)
-        self.pointlist.append(p2)
-        self.pointlist.append(p3)
+        self.color = color
         
         self.com = averageOfPoints(self.pointlist) #center of mass
-        
-        self.vectlist.append(vector(p1, p2))
-        self.vectlist.append(vector(p1, p3))
-        self.vectlist.append(vector(p2, p3))
         
     def move(self, offset):
         for p in self.pointlist:
             p += offset
             
         self.com += offset
-            
-        self.vectlist[0] = vector(self.pointlist[0], self.pointlist[1])
-        self.vectlist[1] = vector(self.pointlist[0], self.pointlist[2])
-        self.vectlist[2] = vector(self.pointlist[1], self.pointlist[2])
-    
+        
+    def getcom(self): #set center of mass
+        self.com = averageOfPoints(self.pointlist)
+        return self.com
+        
     def rotateX(self, angle): #rotate about X-axis (requires translation to maintain position)
         self.normal = point(self.normal.x, float(self.normal.y * cos(angle) - self.normal.z * sin(angle)), float(self.normal.y * sin(angle) + self.normal.z * cos(angle)))
         for p in self.pointlist:
@@ -177,26 +165,18 @@ class triangle:
         else:
             return False
             
-    def getcom(self): #set center of mass
-        self.com = averageOfPoints(self.pointlist)
-        return self.com
-        
     def getDistance(self, camera): #set distance to camera
         self.distance = distance(camera.position, self.com)
         return self.distance
-        
-    def drawWireframe(self, camera, screen, xoffset, yoffset):
-        for v in self.vectlist:
-            v.draw(camera, screen, xoffset, yoffset)
             
-    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull, shader): #draw triangle using pygame.draw.polygon()
+    def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader): #draw triangle using pygame.draw.polygon()
         numdrawn = 0
         
         ppoints = []
         insideView = False
         ssize = screen.get_size()
         
-        for p in self.pointlist:
+        for p in self.pointlist: #detect if all points in polygon are out of view
             ppoints.append(p.project(camera, xoffset, yoffset))
             if (ppoints[-1][0] > 0 and ppoints[-1][1] > 0) and (ppoints[-1][0] < ssize[0] and ppoints[-1][1] < ssize[1]):
                 insideView = True
@@ -208,17 +188,33 @@ class triangle:
                 if scalar < 0.5:
                     scalar = 0.5
                     
-                color = (floor(color[0] * scalar), floor(color[0] * scalar), floor(color[0] * scalar))
+                tcolor = (floor(self.color[0] * scalar), floor(self.color[1] * scalar), floor(self.color[2] * scalar))
             
-            pygame.draw.polygon(screen, color, [ppoints[0], ppoints[1], ppoints[2]])
+            pygame.draw.polygon(screen, tcolor, ppoints)
             numdrawn += 1
             
         return numdrawn
+     
+class triangle(polygon):
+    def __init__(self, normal, p1, p2, p3, color):
+        super().__init__(normal, [p1, p2, p3], color)
+        
+        self.vectlist = []
+        self.vectlist.append(vector(p1, p2))
+        self.vectlist.append(vector(p1, p3))
+        self.vectlist.append(vector(p2, p3))
+        
+    def drawWireframe(self, camera, screen, xoffset, yoffset):
+        for v in self.vectlist:
+            v.draw(camera, screen, xoffset, yoffset)
 
 class object:
-    def __init__(self):
+    def __init__(self, filename, color):
         self.tlist = [] #list of triangles in body
+        self.color = color
         self.com = point(0,0,0) #center of mass
+        
+        self.readSTL(filename)
         
     def readSTL(self, filename): #unpack stl file into object
         try:
@@ -242,7 +238,7 @@ class object:
                     points.append(p)
                     self.com += p
                 elif "endfacet" in l:
-                    self.tlist.append(triangle(normal, points[0], points[1], points[2]))
+                    self.tlist.append(triangle(normal, points[0], points[1], points[2], color))
                     points.clear()
                     psize += 1
                     
@@ -257,7 +253,7 @@ class object:
             for i in range(psize[0]):
                 entry = struct.unpack('<ffffffffffffH', fdata[84 + 50*i:134 + 50*i])
                 print(entry)
-                self.tlist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11])))
+                self.tlist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11]), self.color))
                 self.com.x += (entry[3] + entry[6] + entry[9])
                 self.com.y += (entry[4] + entry[7] + entry[10])
                 self.com.z += (entry[5] + entry[8] + entry[11])
@@ -270,16 +266,16 @@ class object:
         for t in self.tlist:
             t.drawWireframe(camera, screen, xoffset, yoffset)
             
-    def drawRaster(self, camera, screen, xoffset, yoffset, color, cull, shader):
+    def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader):
         numdrawn = 0
     
         for t in self.tlist:
-            numdrawn += t.drawRaster(camera, screen, xoffset, yoffset, color, cull, shader)
+            numdrawn += t.drawRaster(camera, screen, xoffset, yoffset, cull, shader)
             
         return numdrawn
     
     def translate(self, offset): #offset should be a point object
-        self.com = self.com + offset #move center of mass with offset
+        self.com += offset #move center of mass with offset
         for t in self.tlist:
             t.move(offset)
             
@@ -319,10 +315,9 @@ class scene:
                 self.polygons.append(tri)
                 
         self.polygons.sort(key = lambda x: x.distance, reverse = True) #python's sort method is faster than inorder insertion
-                     
+     
         for polygon in self.polygons: #draw in order after storting 
-            #print(self.camera.getDistance(polygon.com))
-            numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), (255, 255, 255), False, self.lightSource)
+            numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), cull, self.lightSource)
         
         self.polygons.clear()
         
@@ -347,19 +342,29 @@ def main(argv):
         "rotational": 0
     }
     
-    mspeeed = 0.5
+    mspeeed = 2
     
     blist = []
     
+    '''
     for n in range(0, len(argv) - 1):
         blist.append(object())
         blist[n].readSTL(argv[n + 1])
         blist[n].rotate((radians(-90),0,0))
+    '''
+    
+    space = 40
+    for cx in range(0, 4):
+        for cy in range(0, 4):
+            for cz in range(0, 4):
+                #blist.append(object("cube2.stl", (random.randint(0,255), random.randint(0,255), random.randint(0,255))))
+                blist.append(object("cube2.stl", (240, 240, 230)))
+                blist[-1].translate(point(cx * space, cy * space, cz * space))
 
     
     #body.rotate((radians(-90),0,0))
     
-    light = pointSource(point(0, -100000, 0))
+    light = pointSource(point(-100000, -100000, -100000))
     
     s = scene(screen, cam, blist, light)
     
@@ -425,6 +430,8 @@ def main(argv):
         
         screen.fill((0,0,0)) #clear for next frame
         
+        print(s.drawPaintedRaster(False))
+        
         cacoords = pfont.render("({}, {}, {})".format(cam.orientation[0], cam.orientation[1], cam.orientation[2]),True, (255,255,255))
         cccoords = pfont.render("({}, {}, {})".format(cam.getCartOrientation().x, cam.getCartOrientation().y, cam.getCartOrientation().z),True, (255,255,255))
         cloc = pfont.render("({}, {}, {})".format(cam.position.x, cam.position.y, cam.position.z),True, (255,255,255))
@@ -434,10 +441,10 @@ def main(argv):
         screen.blit(cloc, (10, 50))
         screen.blit(frames, (10, 70))
         
+        '''
         for body in s.objects:
             body.rotate((radians(0.5),radians(0.5),radians(0.5)))
-        
-        print(s.drawPaintedRaster(False))
+        '''
         
         #draw crosshair
         chsize = 15
