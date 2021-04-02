@@ -15,6 +15,5 @@ Click Detection Algorithm:
 	-that polygon is the clicked polygon
 
 TODO:
--Add general polygon class that triangle/4gon/etc. inherits 
 -Add point in polygon detection method
--Add procedural cube geometry
+-Fix drawing squares so it doesn 'fold' the polygon

@@ -207,13 +207,72 @@ class triangle(polygon):
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
             v.draw(camera, screen, xoffset, yoffset)
+            
+class square(polygon):
+    def __init__(self, p1, p2, p3, p4, color):
+        super().__init__(point(0,0,0), [p1, p2, p3, p4], color)
 
 class object:
-    def __init__(self, filename, color):
-        self.tlist = [] #list of triangles in body
+    def __init__(self, plist, color):
+        self.plist = plist #list of polygons in body
         self.color = color
         self.com = point(0,0,0) #center of mass
+            
+    def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader):
+        numdrawn = 0
+    
+        for p in self.plist:
+            numdrawn += p.drawRaster(camera, screen, xoffset, yoffset, cull, shader)
+            
+        return numdrawn
+    
+    def translate(self, offset): #offset should be a point object
+        self.com += offset #move center of mass with offset
+        for p in self.plist:
+            p.move(offset)
+            
+    def rotate(self, angles): #arg should be array or tuple of three values
+        for p in self.plist:
+            p.move(point(-self.com.x,-self.com.y,-self.com.z)) #move center of mass to origin
+            p.rotateX(angles[0])
+            p.rotateY(angles[1])
+            p.rotateZ(angles[2])
+            p.move(point(self.com.x,self.com.y,self.com.z)) #move back
+            
+class cube(object):
+    def __init__(self, center, sidelength, color):
+        o = sidelength / 2
         
+        points = []
+        for x in range(2): #procedurally create all points in the cube
+            for y in range(2):
+                for z in range(2):
+                    points.append(center + point(((-1) ** x) * o, ((-1) ** y) * o ,((-1) ** z) * o))
+                    print(points[-1].x,points[-1].y,points[-1].z)
+                    
+        right = square(points[0], points[1], points[2], points[3], color) #constant +x
+        right.normal = point(1, 0, 0)
+        
+        left = square(points[4], points[5], points[6], points[7], color) #constant -x
+        left.normal = point(-1, 0, 0)
+    
+        top = square(points[0], points[1], points[4], points[5], color) #constant +y
+        top.normal = point(0, 1, 0)
+        
+        bottom = square(points[2], points[3], points[6], points[7], color) #constant -y
+        bottom.normal = point(0, -1, 0)
+        
+        front = square(points[0], points[2], points[4], points[6], color) #constant +z
+        front.normal = point(0, 0, 1)
+        
+        back = square(points[1], points[3], points[5], points[7], color) #constant -z
+        back.normal = point(0, 0, -1)
+        
+        super().__init__([right, left, top, bottom, front, back], color)
+
+class STLobject(object):
+    def __init__(self, filename, color):
+        super().__init__([], color)
         self.readSTL(filename)
         
     def readSTL(self, filename): #unpack stl file into object
@@ -238,7 +297,7 @@ class object:
                     points.append(p)
                     self.com += p
                 elif "endfacet" in l:
-                    self.tlist.append(triangle(normal, points[0], points[1], points[2], color))
+                    self.plist.append(triangle(normal, points[0], points[1], points[2], color))
                     points.clear()
                     psize += 1
                     
@@ -253,7 +312,7 @@ class object:
             for i in range(psize[0]):
                 entry = struct.unpack('<ffffffffffffH', fdata[84 + 50*i:134 + 50*i])
                 print(entry)
-                self.tlist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11]), self.color))
+                self.plist.append(triangle(point(entry[0],entry[1],entry[2]), point(entry[3],entry[4],entry[5]), point(entry[6],entry[7],entry[8]), point(entry[9],entry[10],entry[11]), self.color))
                 self.com.x += (entry[3] + entry[6] + entry[9])
                 self.com.y += (entry[4] + entry[7] + entry[10])
                 self.com.z += (entry[5] + entry[8] + entry[11])
@@ -263,29 +322,8 @@ class object:
         print(self.com.x, self.com.y, self.com.z)
     
     def drawWireframe(self, camera, screen, xoffset, yoffset):
-        for t in self.tlist:
-            t.drawWireframe(camera, screen, xoffset, yoffset)
-            
-    def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader):
-        numdrawn = 0
-    
-        for t in self.tlist:
-            numdrawn += t.drawRaster(camera, screen, xoffset, yoffset, cull, shader)
-            
-        return numdrawn
-    
-    def translate(self, offset): #offset should be a point object
-        self.com += offset #move center of mass with offset
-        for t in self.tlist:
-            t.move(offset)
-            
-    def rotate(self, angles): #arg should be array or tuple of three values
-        for t in self.tlist:
-            t.move(point(-self.com.x,-self.com.y,-self.com.z)) #move center of mass to origin
-            t.rotateX(angles[0])
-            t.rotateY(angles[1])
-            t.rotateZ(angles[2])
-            t.move(point(self.com.x,self.com.y,self.com.z)) #move back
+        for p in self.plist:
+            p.drawWireframe(camera, screen, xoffset, yoffset)
 
 class pointSource: #point source of light for shading
     def __init__(self, pos):
@@ -304,15 +342,14 @@ class scene:
         self.objects = objects
         self.lightSource = lightSource
         self.polygons = []
-        
-    
+
     def drawPaintedRaster(self, cull): #painter's algorithm
         numdrawn = 0
         
         for object in self.objects:
-            for tri in object.tlist:
-                tri.getDistance(self.camera)
-                self.polygons.append(tri)
+            for p in object.plist:
+                p.getDistance(self.camera)
+                self.polygons.append(p)
                 
         self.polygons.sort(key = lambda x: x.distance, reverse = True) #python's sort method is faster than inorder insertion
      
@@ -342,7 +379,7 @@ def main(argv):
         "rotational": 0
     }
     
-    mspeeed = 2
+    mspeeed = 0.5
     
     blist = []
     
@@ -353,14 +390,18 @@ def main(argv):
         blist[n].rotate((radians(-90),0,0))
     '''
     
+    '''
     space = 40
     for cx in range(0, 4):
         for cy in range(0, 4):
             for cz in range(0, 4):
                 #blist.append(object("cube2.stl", (random.randint(0,255), random.randint(0,255), random.randint(0,255))))
-                blist.append(object("cube2.stl", (240, 240, 230)))
+                blist.append(STLobject("cube2.stl", (240, 240, 230)))
                 blist[-1].translate(point(cx * space, cy * space, cz * space))
-
+    '''
+    
+    testcube = cube(point(1,1,1), 10, (255, 255, 255))
+    blist.append(testcube)
     
     #body.rotate((radians(-90),0,0))
     
@@ -454,7 +495,7 @@ def main(argv):
         pygame.display.flip()
         
         print("{}ms".format((time.time() - startloop) * 100))
-        fps = 1/(time.time() - startloop)
+        #fps = 1/(time.time() - startloop)
 
 if __name__ == "__main__":
     main(sys.argv);
