@@ -209,8 +209,8 @@ class triangle(polygon):
             v.draw(camera, screen, xoffset, yoffset)
             
 class square(polygon):
-    def __init__(self, p1, p2, p3, p4, color):
-        super().__init__(point(0,0,0), [p1, p2, p3, p4], color)
+    def __init__(self, normal, p1, p2, p3, p4, color):
+        super().__init__(normal, [p1, p2, p3, p4], color)
 
 class object:
     def __init__(self, plist, color):
@@ -250,23 +250,12 @@ class cube(object):
                     points.append(center + point(((-1) ** x) * o, ((-1) ** y) * o ,((-1) ** z) * o))
                     print(points[-1].x,points[-1].y,points[-1].z)
                     
-        right = square(points[0], points[1], points[2], points[3], color) #constant +x
-        right.normal = point(1, 0, 0)
-        
-        left = square(points[4], points[5], points[6], points[7], color) #constant -x
-        left.normal = point(-1, 0, 0)
-    
-        top = square(points[0], points[1], points[4], points[5], color) #constant +y
-        top.normal = point(0, 1, 0)
-        
-        bottom = square(points[2], points[3], points[6], points[7], color) #constant -y
-        bottom.normal = point(0, -1, 0)
-        
-        front = square(points[0], points[2], points[4], points[6], color) #constant +z
-        front.normal = point(0, 0, 1)
-        
-        back = square(points[1], points[3], points[5], points[7], color) #constant -z
-        back.normal = point(0, 0, -1)
+        right = square(point(1, 0, 0), points[0], points[2], points[3], points[1], color) #constant +x
+        left = square(point(-1, 0, 0), points[4], points[6], points[7], points[5], color) #constant -x
+        top = square(point(0, 1, 0), points[0], points[4], points[5], points[1], color) #constant +y
+        bottom = square(point(0, -1, 0), points[2], points[6], points[7], points[3], color) #constant -y
+        front = square(point(0, 0, 1), points[0], points[4], points[6], points[2], color) #constant +z
+        back = square(point(0, 0, -1), points[1], points[5], points[7], points[3], color) #constant -z
         
         super().__init__([right, left, top, bottom, front, back], color)
 
@@ -379,7 +368,7 @@ def main(argv):
         "rotational": 0
     }
     
-    mspeeed = 0.5
+    mspeeed = 2
     
     blist = []
     
@@ -390,22 +379,21 @@ def main(argv):
         blist[n].rotate((radians(-90),0,0))
     '''
     
-    '''
-    space = 40
+    space = 20
     for cx in range(0, 4):
         for cy in range(0, 4):
             for cz in range(0, 4):
                 #blist.append(object("cube2.stl", (random.randint(0,255), random.randint(0,255), random.randint(0,255))))
-                blist.append(STLobject("cube2.stl", (240, 240, 230)))
-                blist[-1].translate(point(cx * space, cy * space, cz * space))
-    '''
+                #blist.append(STLobject("cube2.stl", (240, 240, 230)))
+                blist.append(cube(point(cx * space, cy * space, cz * space), 10, (240, 240, 230)))
+                #blist[-1].translate(point(cx * space, cy * space, cz * space))
     
-    testcube = cube(point(1,1,1), 10, (255, 255, 255))
-    blist.append(testcube)
+    #testcube = cube(point(1,1,1), 10, (255, 255, 255))
+    #blist.append(testcube)
     
     #body.rotate((radians(-90),0,0))
     
-    light = pointSource(point(-100000, -100000, -100000))
+    light = pointSource(point(0, -100000, -100000))
     
     s = scene(screen, cam, blist, light)
     
@@ -495,7 +483,7 @@ def main(argv):
         pygame.display.flip()
         
         print("{}ms".format((time.time() - startloop) * 100))
-        #fps = 1/(time.time() - startloop)
+        fps = 1/(time.time() - startloop + 0.01)
 
 if __name__ == "__main__":
     main(sys.argv);
