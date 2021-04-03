@@ -77,6 +77,9 @@ class point: #general 3D coordinate
         
         return self
         
+    def __str__(self):
+        return "{}, {}, {}".format(self.x, self.y, self.z)
+        
     def project(self, camera, xoffset, yoffset): #project point onto 2d camera plane (this formula from wikipedia.org/wiki/3D_projection)
         cx, cy, cz = camera.position.x, camera.position.y, camera.position.z
         thx, thy, thz = camera.orientation[0], camera.orientation[1], camera.orientation[2]
@@ -168,6 +171,40 @@ class polygon:
     def getDistance(self, camera): #set distance to camera
         self.distance = distance(camera.position, self.com)
         return self.distance
+        
+    def insidePolygon2D(self, camera, xoffset, yoffset, point): #determine if a 2D point is in the projected polygon (from: https://observablehq.com/@tmcw/understanding-point-in-polygon)
+        poly2D = []
+        
+        for p in self.pointlist: #create list of projected points
+            poly2D.append(p.project(camera, xoffset, yoffset))
+            
+        x = point[0]
+        y = point[1]
+            
+        inside = False
+        for i in range(len(poly2D) - 1):
+            if i == 0:
+                j = len(poly2D) - 1
+            else:
+                j = i - 1
+                
+            xi = poly2D[i][0]
+            yi = poly2D[i][1]
+            
+            xj = poly2D[j][0]
+            yj = poly2D[j][1]
+            
+            intersect = ((yi > y) != (yj > y)) and x < ((((xj - xi) * (y - yi)) / (yj - yi)) + xi)
+            
+            if intersect:
+                inside = not inside
+                
+        if inside:
+            print(point)
+            print(poly2D)
+            print()
+            
+        return inside
             
     def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader): #draw triangle using pygame.draw.polygon()
         numdrawn = 0
@@ -331,6 +368,11 @@ class scene:
         self.objects = objects
         self.lightSource = lightSource
         self.polygons = []
+        
+        for object in self.objects:
+            for p in object.plist:
+                self.polygons.append(p)
+                
 
     def drawPaintedRaster(self, cull): #painter's algorithm
         numdrawn = 0
@@ -338,14 +380,11 @@ class scene:
         for object in self.objects:
             for p in object.plist:
                 p.getDistance(self.camera)
-                self.polygons.append(p)
                 
         self.polygons.sort(key = lambda x: x.distance, reverse = True) #python's sort method is faster than inorder insertion
      
         for polygon in self.polygons: #draw in order after storting 
             numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), cull, self.lightSource)
-        
-        self.polygons.clear()
         
         return numdrawn
 
@@ -372,26 +411,11 @@ def main(argv):
     
     blist = []
     
-    '''
-    for n in range(0, len(argv) - 1):
-        blist.append(object())
-        blist[n].readSTL(argv[n + 1])
-        blist[n].rotate((radians(-90),0,0))
-    '''
-    
     space = 20
     for cx in range(0, 4):
         for cy in range(0, 4):
             for cz in range(0, 4):
-                #blist.append(object("cube2.stl", (random.randint(0,255), random.randint(0,255), random.randint(0,255))))
-                #blist.append(STLobject("cube2.stl", (240, 240, 230)))
                 blist.append(cube(point(cx * space, cy * space, cz * space), 10, (240, 240, 230)))
-                #blist[-1].translate(point(cx * space, cy * space, cz * space))
-    
-    #testcube = cube(point(1,1,1), 10, (255, 255, 255))
-    #blist.append(testcube)
-    
-    #body.rotate((radians(-90),0,0))
     
     light = pointSource(point(0, -100000, -100000))
     
@@ -448,6 +472,11 @@ def main(argv):
                     motionMatrix["vertical"] = 0
                 elif event.key == pygame.K_f:
                     motionMatrix["vertical"] = 0
+                    
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for p in s.polygons:
+                    if p.insidePolygon2D(s.camera, mxcenter, mycenter, (mxcenter,mycenter)):
+                        p.color = (255, 0, 0)
             
         #apply camera translation
         s.camera.position.z += motionMatrix["forward"] * cos(cam.orientation[1])
@@ -459,7 +488,7 @@ def main(argv):
         
         screen.fill((0,0,0)) #clear for next frame
         
-        print(s.drawPaintedRaster(False))
+        s.drawPaintedRaster(False)
         
         cacoords = pfont.render("({}, {}, {})".format(cam.orientation[0], cam.orientation[1], cam.orientation[2]),True, (255,255,255))
         cccoords = pfont.render("({}, {}, {})".format(cam.getCartOrientation().x, cam.getCartOrientation().y, cam.getCartOrientation().z),True, (255,255,255))
@@ -482,7 +511,7 @@ def main(argv):
         
         pygame.display.flip()
         
-        print("{}ms".format((time.time() - startloop) * 100))
+        #print("{}ms".format((time.time() - startloop) * 100))
         fps = 1/(time.time() - startloop + 0.01)
 
 if __name__ == "__main__":
