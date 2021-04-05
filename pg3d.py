@@ -232,7 +232,7 @@ class polygon:
             
         return (crossings % 2 != 0)
         
-    def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader): #draw triangle using pygame.draw.polygon()
+    def drawRaster(self, camera, screen, xoffset, yoffset, cull, shaders): #draw triangle using pygame.draw.polygon()
         numdrawn = 0
         
         ppoints = []
@@ -245,9 +245,17 @@ class polygon:
                 insideView = True
             
         if (self.facingCamera(camera) or cull == False) and insideView == True: #draw if not culled and in the camera's FOV
-            if (shader != None): #apply shader
-                scalar = -(cos(shader.getAngle(self)) / 2) + 0.5
-                #print(scalar)
+            tcolor = self.color
+            if (shaders): #apply shaders
+                scalar = 0
+                
+                for shader in shaders:
+                    sangle = -(cos(shader.getAngle(self)) / 2)
+                    
+                    if sangle >= 0:
+                        scalar += sangle
+                
+                scalar += 0.5
                 
                 if scalar < 0.5:
                     scalar = 0.5
@@ -394,11 +402,11 @@ class pointSource: #point source of light for shading
         return acos(dotProduct(n, dv)/(sqrt(dotProduct(dv, dv)) * sqrt(dotProduct(n, n)))) #return angle
         
 class scene:
-    def __init__(self, screen, camera, objects, lightSource):
+    def __init__(self, screen, camera, objects, lightSources):
         self.screen = screen
         self.camera = camera
         self.objects = objects
-        self.lightSource = lightSource
+        self.lightSources = lightSources
         self.polygons = []
         
         for object in self.objects:
@@ -416,7 +424,7 @@ class scene:
         self.polygons.sort(key = lambda x: x.distance, reverse = True) #python's sort method is faster than inorder insertion
      
         for polygon in self.polygons: #draw in order after storting 
-            numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), cull, self.lightSource)
+            numdrawn += polygon.drawRaster(self.camera, self.screen, int(self.screen.get_width()/2), int(self.screen.get_height()/2), cull, self.lightSources)
         
         return numdrawn
 
@@ -443,13 +451,22 @@ def main(argv):
     
     blist = []
     
+    color1 = (180, 180, 180)
+    color2 = (220, 220, 220)
+    
     space = 20
     for cx in range(0, 4):
         for cy in range(0, 4):
             for cz in range(0, 4):
-                blist.append(cube(point(cx * space, cy * space, cz * space), 10, (240, 240, 230)))
+                if (cx + cy + cz) % 2 == 0:
+                    color = color1
+                else:
+                    color = color2
+                blist.append(cube(point(cx * space, cy * space, cz * space), 10, color))
     
-    light = pointSource(point(0, -100000, -100000))
+    light = []
+    #light.append(pointSource(point(0, -100000, 0)))
+    #light.append(pointSource(point(0, 100000, 0)))
     
     s = scene(screen, cam, blist, light)
     
