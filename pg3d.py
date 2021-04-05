@@ -19,6 +19,16 @@ def dotProduct(a, b):
 def distance(a, b):
     return sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2)
 
+def orientation(p, q, r): #get orientation of three points
+    val = (float(q.y - p.y) * (r.x - q.x)) - (float(q.x - p.x) * (r.y - q.y))
+    
+    if (val > 0):
+        return 1 #clockwise
+    elif (val < 0):
+        return 2 #counterclockwise
+    else:
+        return 0 #colinear
+
 class camera:
     def __init__(self, position, orientation, surface):
         self.position = position #pinhole
@@ -98,7 +108,7 @@ class point: #general 3D coordinate
         
         return (xoffset - bx, by + yoffset)
       
-class vector: #or line
+class line: #or line
     def __init__(self, p1, p2):
         self.p1 = p1
         self.p2 = p2
@@ -108,6 +118,30 @@ class vector: #or line
         pr2 = self.p2.project(camera, 0, 0)
         pygame.draw.line(screen, (255, 255, 255), (pr1[0] + xoffset, pr1[1] + yoffset), (pr2[0] + xoffset, pr2[1] + yoffset), 1)
         
+class point2D:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        
+    def __str__(self):
+        return "{}, {}".format(self.x, self.y)
+    
+class line2D:
+    def __init__(self, p1, p2): #line segment defined by two points
+        self.p1 = p1
+        self.p2 = p2
+        
+    def intersects(self, other):
+        o1 = orientation(self.p1, self.p2, other.p1)
+        o2 = orientation(self.p1, self.p2, other.p2)
+        o3 = orientation(other.p1, other.p2, self.p1)
+        o4 = orientation(other.p1, other.p2, self.p2)
+        
+        if ((o1 != o2) and (o3 != o4)):
+            return True
+        else:
+            return False
+    
 class polygon:
     def __init__(self, normal, pointlist, color):
         self.normal = normal
@@ -117,6 +151,8 @@ class polygon:
         self.color = color
         
         self.com = averageOfPoints(self.pointlist) #center of mass
+        
+        self.parent = None #body the polygon belongs to
         
     def move(self, offset):
         for p in self.pointlist:
@@ -173,39 +209,35 @@ class polygon:
         return self.distance
         
     def insidePolygon2D(self, camera, xoffset, yoffset, point): #determine if a 2D point is in the projected polygon (from: https://observablehq.com/@tmcw/understanding-point-in-polygon)
-        poly2D = []
+        points2D = [] 
+        lines2D = []
+        crossings = 0
         
         for p in self.pointlist: #create list of projected points
-            poly2D.append(p.project(camera, xoffset, yoffset))
+            points2D.append(point2D(p.project(camera, xoffset, yoffset)[0], p.project(camera, xoffset, yoffset)[1]))
             
-        x = point[0]
-        y = point[1]
-            
-        inside = False
-        for i in range(len(poly2D) - 1):
+        for i in range(len(points2D)):
             if i == 0:
-                j = len(poly2D) - 1
+                j = len(points2D) - 1
             else:
                 j = i - 1
                 
-            xi = poly2D[i][0]
-            yi = poly2D[i][1]
-            
-            xj = poly2D[j][0]
-            yj = poly2D[j][1]
-            
-            intersect = ((yi > y) != (yj > y)) and x < ((((xj - xi) * (y - yi)) / (yj - yi)) + xi)
-            
-            if intersect:
-                inside = not inside
+            lines2D.append(line2D(points2D[i], points2D[j])) #get all lines in polygon
+             
+        ray = line2D(point2D(xoffset, yoffset), point2D(xoffset + 10000, yoffset)) #cast functionally infinite ray
+        
+        for l in lines2D:
+            if ray.intersects(l):
+                crossings += 1
                 
-        if inside:
-            print(point)
-            print(poly2D)
-            print()
+        if (crossings % 2 != 0):
+            print(crossings)
+            for l in lines2D:
+                print(str(l.p1), str(l.p2))
+            print("===")
             
-        return inside
-            
+        return (crossings % 2 != 0)
+        
     def drawRaster(self, camera, screen, xoffset, yoffset, cull, shader): #draw triangle using pygame.draw.polygon()
         numdrawn = 0
         
@@ -237,9 +269,9 @@ class triangle(polygon):
         super().__init__(normal, [p1, p2, p3], color)
         
         self.vectlist = []
-        self.vectlist.append(vector(p1, p2))
-        self.vectlist.append(vector(p1, p3))
-        self.vectlist.append(vector(p2, p3))
+        self.vectlist.append(line(p1, p2))
+        self.vectlist.append(line(p1, p3))
+        self.vectlist.append(line(p2, p3))
         
     def drawWireframe(self, camera, screen, xoffset, yoffset):
         for v in self.vectlist:
@@ -287,14 +319,19 @@ class cube(object):
                     points.append(center + point(((-1) ** x) * o, ((-1) ** y) * o ,((-1) ** z) * o))
                     print(points[-1].x,points[-1].y,points[-1].z)
                     
-        right = square(point(1, 0, 0), points[0], points[2], points[3], points[1], color) #constant +x
-        left = square(point(-1, 0, 0), points[4], points[6], points[7], points[5], color) #constant -x
-        top = square(point(0, 1, 0), points[0], points[4], points[5], points[1], color) #constant +y
-        bottom = square(point(0, -1, 0), points[2], points[6], points[7], points[3], color) #constant -y
-        front = square(point(0, 0, 1), points[0], points[4], points[6], points[2], color) #constant +z
-        back = square(point(0, 0, -1), points[1], points[5], points[7], points[3], color) #constant -z
+        squares = []
+                    
+        squares.append(square(point(1, 0, 0), points[0], points[2], points[3], points[1], color)) #constant +x
+        squares.append(square(point(-1, 0, 0), points[4], points[6], points[7], points[5], color)) #constant -x
+        squares.append(square(point(0, 1, 0), points[0], points[4], points[5], points[1], color)) #constant +y
+        squares.append(square(point(0, -1, 0), points[2], points[6], points[7], points[3], color)) #constant -y
+        squares.append(square(point(0, 0, 1), points[0], points[4], points[6], points[2], color)) #constant +z
+        squares.append(square(point(0, 0, -1), points[1], points[5], points[7], points[3], color)) #constant -z
         
-        super().__init__([right, left, top, bottom, front, back], color)
+        for s in squares:
+            s.parent = self
+        
+        super().__init__(squares, color)
 
 class STLobject(object):
     def __init__(self, filename, color):
@@ -474,9 +511,19 @@ def main(argv):
                     motionMatrix["vertical"] = 0
                     
             if event.type == pygame.MOUSEBUTTONDOWN:
+                plist = []
+            
                 for p in s.polygons:
                     if p.insidePolygon2D(s.camera, mxcenter, mycenter, (mxcenter,mycenter)):
+                       plist.append(p)
+                       
+                plist.sort(key = lambda x: x.getDistance(s.camera))
+                
+                if plist:
+                    for p in plist[0].parent.plist:
                         p.color = (255, 0, 0)
+                    
+                print("====")
             
         #apply camera translation
         s.camera.position.z += motionMatrix["forward"] * cos(cam.orientation[1])

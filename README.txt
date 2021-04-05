@@ -14,6 +14,11 @@ Click Detection Algorithm:
 -of the polygons that intersect the camera, if any are found, determine which is closest to the camera
 	-that polygon is the clicked polygon
 
+Point in Polygon Algorithm:
+-draw a line in the positve x direction starting at the desired point
+	-determine how many segments of the polygon said line intersects
+	-if that number is odd, the point is inside the polygon
+
 TODO:
 -Add point in polygon detection method
 -Fix drawing squares so it doesn 'fold' the polygon
