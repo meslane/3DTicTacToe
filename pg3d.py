@@ -124,7 +124,7 @@ class point2D:
         self.y = y
         
     def __str__(self):
-        return "{}, {}".format(self.x, self.y)
+        return "({}, {})".format(self.x, self.y)
     
 class line2D:
     def __init__(self, p1, p2): #line segment defined by two points
@@ -229,12 +229,6 @@ class polygon:
         for l in lines2D:
             if ray.intersects(l):
                 crossings += 1
-                
-        if (crossings % 2 != 0):
-            print(crossings)
-            for l in lines2D:
-                print(str(l.p1), str(l.p2))
-            print("===")
             
         return (crossings % 2 != 0)
         
@@ -253,6 +247,7 @@ class polygon:
         if (self.facingCamera(camera) or cull == False) and insideView == True: #draw if not culled and in the camera's FOV
             if (shader != None): #apply shader
                 scalar = -(cos(shader.getAngle(self)) / 2) + 0.5
+                #print(scalar)
                 
                 if scalar < 0.5:
                     scalar = 0.5
@@ -522,8 +517,6 @@ def main(argv):
                 if plist:
                     for p in plist[0].parent.plist:
                         p.color = (255, 0, 0)
-                    
-                print("====")
             
         #apply camera translation
         s.camera.position.z += motionMatrix["forward"] * cos(cam.orientation[1])
@@ -546,10 +539,6 @@ def main(argv):
         screen.blit(cloc, (10, 50))
         screen.blit(frames, (10, 70))
         
-        '''
-        for body in s.objects:
-            body.rotate((radians(0.5),radians(0.5),radians(0.5)))
-        '''
         
         #draw crosshair
         chsize = 15
