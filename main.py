@@ -16,9 +16,10 @@ class player:
         return teststate & self.boardstate == teststate #if bit pattern is in board state
         
     def testWin(self):
-        diags3D = [0x1000020000400008, 0x8000040000200001, 0x1002004008000, 0x8004002001000] #3D diagonals
+        diags3D = [0x1000020000400008, 0x8000040000200001, 0x1002004008000, 0x8004002001000]
         diagsHoriz = [0x1000200040008, 0x8000400020001]
         diagsVert = [0x1248, 0x8421]
+        diagsDepth = [0x1001001001000, 0x1000010000100001]
         
         for d in diags3D:
             if self.testState(d):
@@ -31,6 +32,10 @@ class player:
                     
             for d in diagsVert: #vertical diagonals
                 if self.testState(d << (16 * n)):
+                    return True
+                    
+            for d in diagsDepth: #'z' diagonals
+                if self.testState(d << n):
                     return True
                 
             for m in range(4):
@@ -184,16 +189,7 @@ def main(argv):
         
         s.drawPaintedRaster(False) #draw polygons in reverse depth order
         
-        '''
-        cacoords = pfont.render("({}, {}, {})".format(cam.orientation[0], cam.orientation[1], cam.orientation[2]),True, (255,255,255))
-        cccoords = pfont.render("({}, {}, {})".format(cam.getCartOrientation().x, cam.getCartOrientation().y, cam.getCartOrientation().z),True, (255,255,255))
-        cloc = pfont.render("({}, {}, {})".format(cam.position.x, cam.position.y, cam.position.z),True, (255,255,255))
-
-        screen.blit(cacoords, (10, 10))
-        screen.blit(cccoords, (10, 30))
-        screen.blit(cloc, (10, 50))
-        '''
-        frames = pfont.render("{} fps".format(round(fps,0)),True, (255,255,255))
+        frames = pfont.render("{} fps".format(round(fps,1)),True, (255,255,255))
         screen.blit(frames, (10, 10))
         
         
