@@ -5,6 +5,7 @@ DONE List:
 -Back face culling
 -Point source lighting and shading
 -Painter's algorithm
+-Point in polygon and click detection
 
 Click Detection Algorithm:
 -iterate through each polygon and get its projection
@@ -20,5 +21,3 @@ Point in Polygon Algorithm:
 	-if that number is odd, the point is inside the polygon
 
 TODO:
--Add point in polygon detection method
--Fix drawing squares so it doesn 'fold' the polygon
