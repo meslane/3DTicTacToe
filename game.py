@@ -4,6 +4,7 @@ import struct
 import sys
 import time
 import random
+import copy
 
 import pg3d
 
@@ -24,7 +25,9 @@ class player:
     def __init__(self, name, color):
         self.name = name
         self.color = color
+        self.type = 0 #0 if player, 1 if bot
         self.boardstate = 0x0 #number denoting where the player has placed their pieces on the board
+        self.parentBoard = None
         
     def testState(self, teststate):
         return teststate & self.boardstate == teststate #if bit pattern is in board state
@@ -65,10 +68,50 @@ class player:
                 
         return False
         
+    def makeMove(self, cellNum): #cellnum must be in 64-bit format
+        if not self.parentBoard.testState(cellNum): #if desired move is not occupied
+            self.boardstate |= cellNum
+            self.parentBoard.boardstate |= cellNum
+            return True
+            
+        return False
+        
+    def numWinningMoves(self, board): #return number of possbile winning moves this player can make this turn
+        moves = 0
+        
+        for n in range(64):
+            if not board.testState(1 << n): #if not already occupied
+                newplayer = copy.deepcopy(self)
+                newplayer.boardstate |= (1 << n)
+                if newplayer.testWin():
+                    moves += 1
+                    
+        return moves
+                
+class bot(player):
+    def __init__(self, name, color):
+        super().__init__(name, color)
+        self.type = 1
+        
+    def doMove(self):
+        attemptCell = random.randint(0,63)
+        while not self.makeMove(1 << attemptCell):
+            attemptCell = random.randint(0,63)
+            
+        return attemptCell
+        
 class board:
     def __init__(self, playerlist):
         self.playerlist = playerlist #list of player objects
+        self.boardstate = 0x0
+        
+        for p in self.playerlist:
+            p.parentBoard = self
+        
+    def testState(self, teststate):
+        return teststate & self.boardstate == teststate #if bit pattern is in board state
     
+    '''
     def makeMove(self, playerNum, cellNum): #make move and return true if move is valid
         occupied = False
         for p in self.playerlist:
@@ -78,9 +121,11 @@ class board:
                 
         if not occupied:
             self.playerlist[playerNum].boardstate |= cellNum
+            self.boardstate |= cellNum
             return True
             
         return False
-        
+    '''
+    
     def testWin(self, playerNum):
         return self.playerlist[playerNum].testWin() #true if given player has won
