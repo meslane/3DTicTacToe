@@ -93,7 +93,7 @@ class bot(player):
         super().__init__(name, color)
         self.type = 1
         
-    def doMove(self):
+    def doRandomMove(self):
         attemptCell = random.randint(0,63)
         while not self.makeMove(1 << attemptCell):
             attemptCell = random.randint(0,63)
@@ -101,31 +101,34 @@ class bot(player):
         return attemptCell
         
 class board:
-    def __init__(self, playerlist):
+    def __init__(self, playerlist, currPlayerNum):
         self.playerlist = playerlist #list of player objects
+        self.currentPlayer = playerlist[currPlayerNum]
         self.boardstate = 0x0
+        self.children = [] #list of child boards for bot tree search
         
         for p in self.playerlist:
             p.parentBoard = self
+            
+    def gotoNextPlayer(self):
+        if self.currentPlayer == self.playerlist[-1]:
+            self.currentPlayer = self.playerlist[0]
+        else:
+            self.currentPlayer = self.playerlist[self.playerlist.index(self.currentPlayer) + 1]
+            
+    def createChildTree(self, depth): #create a tree of all possible moves out to n depth
+        if depth > 0:
+            for n in range(64):
+                if not self.testState(1 << n): #if move is valid
+                    print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
+                    self.children.append(copy.deepcopy(self))
+                    self.children[-1].currentPlayer.makeMove(1 << n) #copy current board state but make the move, thereby advancing the game by 1
+                    self.children[-1].gotoNextPlayer #advance to the next player
+                    self.children[-1].createChildTree(depth - 1) #recur
+                    #print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
         
     def testState(self, teststate):
         return teststate & self.boardstate == teststate #if bit pattern is in board state
     
-    '''
-    def makeMove(self, playerNum, cellNum): #make move and return true if move is valid
-        occupied = False
-        for p in self.playerlist:
-            if p.testState(cellNum): #cellNum must be in 64-bit format
-                occupied = True
-                break
-                
-        if not occupied:
-            self.playerlist[playerNum].boardstate |= cellNum
-            self.boardstate |= cellNum
-            return True
-            
-        return False
-    '''
-    
-    def testWin(self, playerNum):
-        return self.playerlist[playerNum].testWin() #true if given player has won
+    def testWin(self):
+        return self.currentPlayer.testWin() #true if given player has won

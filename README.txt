@@ -21,3 +21,8 @@ Point in Polygon Algorithm:
 	-if that number is odd, the point is inside the polygon
 
 TODO:
+Create custom copy for tree creation that preserves board and player states but not children
+
+3D Tic Tac Toe Notes:
+-Minimax will not work for AI opponents since there can be more than two players
+-Can still implement tree search

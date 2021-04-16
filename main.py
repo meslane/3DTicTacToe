@@ -50,7 +50,7 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
     
     fps = 0
     
-    usernum = 0
+    #usernum = 0
     locked = True
     run = True
     winner = None
@@ -111,8 +111,8 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
                 elif event.key == pygame.K_f:
                     motionMatrix["vertical"] = 0
                     
-            if event.type == pygame.MOUSEBUTTONDOWN and winner == None:
-                if locked:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if locked and winner == None:
                     plist = []
                     
                     for p in s.polygons: #get closest polygon to mouse
@@ -121,24 +121,25 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
                            
                     plist.sort(key = lambda x: x.getDistance(s.camera))
                     
-                    if plist and ttt.playerlist[usernum].type == 0: #if it is a human's turn
+                    if plist and ttt.currentPlayer.type == 0: #if it is a human's turn
                         #validmove = ttt.makeMove(usernum, plist[0].parent.numToBin())
-                        validmove = ttt.playerlist[usernum].makeMove(plist[0].parent.numToBin())
+                        validmove = ttt.currentPlayer.makeMove(plist[0].parent.numToBin())
                         
                         if validmove:
-                            plist[0].parent.changeColor(ttt.playerlist[usernum].color)
+                            plist[0].parent.changeColor(ttt.currentPlayer.color)
                             plist[0].parent.occupied = True
                             
-                            if ttt.testWin(usernum):
-                                winner = ttt.playerlist[usernum]
+                            if ttt.testWin():
+                                winner = ttt.currentPlayer
                                 
                             #print(ttt.playerlist[usernum].numWinningMoves(ttt))
-                            
+                            '''
                             if usernum == len(ttt.playerlist) - 1:
                                 usernum = 0
                             else:
                                 usernum += 1
-                        
+                            '''
+                            ttt.gotoNextPlayer()
                                 
                 else:
                     locked = True
@@ -146,19 +147,24 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
                     pygame.event.set_grab(True)
                     
         
-        if ttt.playerlist[usernum].type == 1 and winner == None: #if it is a bot's turn
-            cellNum = ttt.playerlist[usernum].doMove()
-            print(cellNum)
+        if ttt.currentPlayer.type == 1 and winner == None: #if it is a bot's turn
+            cellNum = ttt.currentPlayer.doRandomMove()
             blist[cellNum].occupied = True
-            blist[cellNum].changeColor(ttt.playerlist[usernum].color)
+            blist[cellNum].changeColor(ttt.currentPlayer.color)
             
-            if ttt.testWin(usernum):
-                winner = ttt.playerlist[usernum]
+            if ttt.testWin():
+                winner = ttt.currentPlayer
             
+            '''
             if usernum == len(ttt.playerlist) - 1:
                 usernum = 0
             else:
                 usernum += 1
+            '''
+            ttt.gotoNextPlayer()
+                
+        if ttt.boardstate == 0xffffffffffffffff and winner == None:
+            winner = False
         
         #apply camera translation
         s.camera.position.z += motionMatrix["forward"] * cos(cam.orientation[1])
@@ -175,10 +181,14 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
         frames = pfont.render("{} fps".format(round(fps,1)),True, (255,255,255))
         
         if winner == None:
-            toptext = bfont.render("{}'s Turn".format(ttt.playerlist[usernum].name), True, ttt.playerlist[usernum].color)
+            toptext = bfont.render("{}'s Turn".format(ttt.currentPlayer.name), True, ttt.currentPlayer.color)
         else:
-            toptext = bfont.render("{} Wins!".format(winner.name), True, winner.color)
-            bottomtext = bfont.render("Press SPACE to Continue", True, winner.color)
+            if winner == False:
+                toptext = bfont.render("Draw", True, (255, 255, 255))
+            else:
+                toptext = bfont.render("{} Wins!".format(winner.name), True, winner.color)
+            
+            bottomtext = bfont.render("Press SPACE to Continue", True, (255, 255, 255))
             brect = bottomtext.get_rect(center = (mxcenter, screen.get_height() - 25))
             screen.blit(bottomtext, brect)
         
@@ -199,7 +209,7 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
 def main(argv):
     pygame.init()
     
-    pygame.display.set_caption("3D")
+    pygame.display.set_caption("3D Tic Tac Toe")
     screen = pygame.display.set_mode([1280,720], pygame.RESIZABLE)
     pygame.mouse.set_visible(False)
     pygame.event.set_grab(True)
@@ -209,9 +219,14 @@ def main(argv):
     
     cam = pg3d.camera(pg3d.point(0,0, -75), [0,0,0], pg3d.point(0,0,1000))
     
-    while True:
-        ttt = game.board([game.bot("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0))])
-        runGame(screen, ttt, pfont, bfont, cam)
+    #while True:
+        #ttt = game.board([game.bot("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
+        #runGame(screen, ttt, pfont, bfont, cam)
+        
+    ttt = game.board([game.bot("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
+    print("start tree creation")
+    ttt.createChildTree(4)
+    print("finish tree creation")
 
 if __name__ == "__main__":
     main(sys.argv)
