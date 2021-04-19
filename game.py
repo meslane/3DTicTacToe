@@ -29,6 +29,13 @@ class player:
         self.boardstate = 0x0 #number denoting where the player has placed their pieces on the board
         self.parentBoard = None
         
+    def copy(self):
+        copyplayer = player(self.name, self.color)
+        copyplayer.type = self.type
+        copyplayer.boardstate = self.boardstate
+        
+        return copyplayer
+        
     def testState(self, teststate):
         return teststate & self.boardstate == teststate #if bit pattern is in board state
         
@@ -76,17 +83,17 @@ class player:
             
         return False
         
-    def numWinningMoves(self, board): #return number of possbile winning moves this player can make this turn
-        moves = 0
+    def getWinningMoves(self): #return number of possbile winning moves this player can make this turn
+        moves = []
         
         for n in range(64):
-            if not board.testState(1 << n): #if not already occupied
+            if not self.parentBoard.testState(1 << n): #if not already occupied
                 newplayer = copy.deepcopy(self)
                 newplayer.boardstate |= (1 << n)
                 if newplayer.testWin():
-                    moves += 1
+                    moves.append((1 << n))
                     
-        return moves
+        return tuple(moves)
                 
 class bot(player):
     def __init__(self, name, color):
@@ -100,6 +107,28 @@ class bot(player):
             
         return attemptCell
         
+    def doBlockingMove(self):
+        possibleMoves = []
+        cell = -1
+        
+        for p in self.parentBoard.playerlist:
+            for m in p.getWinningMoves():
+                if m not in possibleMoves:
+                    possibleMoves.append(m)
+                    
+        if possibleMoves:
+            cell = possibleMoves[0]
+        else:
+            vmoves = self.parentBoard.getValidMoves()
+            cell = vmoves[random.randint(0, len(vmoves) - 1)]
+            
+        self.makeMove(cell)
+        
+        print(cell)
+        return int(log(cell, 2))
+        
+        
+        
 class board:
     def __init__(self, playerlist, currPlayerNum):
         self.playerlist = playerlist #list of player objects
@@ -110,25 +139,47 @@ class board:
         for p in self.playerlist:
             p.parentBoard = self
             
+    def copy(self):
+        copyplayerlist = []
+        
+        for p in self.playerlist:
+            copyplayerlist.append(p.copy())
+    
+        copyObject = board(copyplayerlist, self.playerlist.index(self.currentPlayer))
+        copyObject.boardstate = self.boardstate
+        
+        return copyObject
+            
     def gotoNextPlayer(self):
         if self.currentPlayer == self.playerlist[-1]:
             self.currentPlayer = self.playerlist[0]
         else:
             self.currentPlayer = self.playerlist[self.playerlist.index(self.currentPlayer) + 1]
             
+    '''
     def createChildTree(self, depth): #create a tree of all possible moves out to n depth
         if depth > 0:
             for n in range(64):
                 if not self.testState(1 << n): #if move is valid
-                    print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
-                    self.children.append(copy.deepcopy(self))
+                    #print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
+                    self.children.append(self.copy())
                     self.children[-1].currentPlayer.makeMove(1 << n) #copy current board state but make the move, thereby advancing the game by 1
-                    self.children[-1].gotoNextPlayer #advance to the next player
+                    self.children[-1].gotoNextPlayer() #advance to the next player
                     self.children[-1].createChildTree(depth - 1) #recur
                     #print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
-        
+    '''    
+    
     def testState(self, teststate):
         return teststate & self.boardstate == teststate #if bit pattern is in board state
     
     def testWin(self):
         return self.currentPlayer.testWin() #true if given player has won
+        
+    def getValidMoves(self): #get all moves that any player could make
+        validmoves = []
+        
+        for n in range(64):
+            if not self.testState(1 << n):
+                validmoves.append(1 << n)
+                
+        return tuple(validmoves)

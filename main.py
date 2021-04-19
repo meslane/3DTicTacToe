@@ -132,7 +132,7 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
                             if ttt.testWin():
                                 winner = ttt.currentPlayer
                                 
-                            #print(ttt.playerlist[usernum].numWinningMoves(ttt))
+                            print(ttt.currentPlayer.getWinningMoves())
                             '''
                             if usernum == len(ttt.playerlist) - 1:
                                 usernum = 0
@@ -148,7 +148,7 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
                     
         
         if ttt.currentPlayer.type == 1 and winner == None: #if it is a bot's turn
-            cellNum = ttt.currentPlayer.doRandomMove()
+            cellNum = ttt.currentPlayer.doBlockingMove()
             blist[cellNum].occupied = True
             blist[cellNum].changeColor(ttt.currentPlayer.color)
             
@@ -219,14 +219,17 @@ def main(argv):
     
     cam = pg3d.camera(pg3d.point(0,0, -75), [0,0,0], pg3d.point(0,0,1000))
     
-    #while True:
-        #ttt = game.board([game.bot("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
-        #runGame(screen, ttt, pfont, bfont, cam)
-        
+    while True:
+        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
+        runGame(screen, ttt, pfont, bfont, cam)
+    
+    '''    
     ttt = game.board([game.bot("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
     print("start tree creation")
-    ttt.createChildTree(4)
+    #ttt.boardstate = 0x12839120faf
+    print(ttt.createChildTree(3))
     print("finish tree creation")
+    '''
 
 if __name__ == "__main__":
     main(sys.argv)
