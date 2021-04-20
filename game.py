@@ -8,6 +8,22 @@ import copy
 
 import pg3d
 
+def getAllCombinations(l, n, r, index, data, i, output):
+    if (index == r):
+        temp = []
+    
+        for j in range(r):
+            temp.append(data[j])
+        output.append(temp)
+        return 
+    
+    if (i >= n):
+        return
+        
+    data[index] = l[i]
+    getAllCombinations(l, n, r, index + 1, data, i + 1, output)
+    getAllCombinations(l, n, r, index, data, i + 1, output)
+
 class cell(pg3d.cube):
     def __init__(self, center, sidelength, color, number):
         super().__init__(center, sidelength, color)
@@ -94,6 +110,27 @@ class player:
                     moves.append((1 << n))
                     
         return tuple(moves)
+        
+    def getWinningSequencesAtDepth(self, depth): #get all sequences of n length that will result in a win
+        moves = []
+        winningMoves = []
+        
+        validmoves = list(self.parentBoard.getValidMoves())
+        
+        getAllCombinations(validmoves, len(validmoves), depth, 0, [0] * depth, 0, moves)
+        
+        for sequence in moves:
+            movebits = 0
+            for move in sequence:
+                movebits |= move
+            
+            newplayer = copy.deepcopy(self)
+            newplayer.boardstate |= movebits
+            
+            if newplayer.testWin():
+                winningMoves.append(sequence)
+        
+        return winningMoves
                 
 class bot(player):
     def __init__(self, name, color):
