@@ -4,7 +4,6 @@ import struct
 import sys
 import time
 import random
-from multiprocessing import Process
 
 import pg3d
 import gui
@@ -223,7 +222,7 @@ def main(argv):
     
     while True:
         #ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
-        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255), 3)], 0)
+        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255), 3), game.bot("Player 3", (0,255,0), 2)], 0)
         runGame(screen, ttt, pfont, bfont, cam)
     
     '''    
