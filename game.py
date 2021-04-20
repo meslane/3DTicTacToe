@@ -24,6 +24,27 @@ def getAllCombinations(l, n, r, index, data, i, output):
     getAllCombinations(l, n, r, index + 1, data, i + 1, output)
     getAllCombinations(l, n, r, index, data, i + 1, output)
 
+def getShortest(l):
+    min = l[0]
+    for i in range(1, len(l)):
+        if len(l[i]) < len(min):
+            min = l[i]
+            
+    return min
+
+def getAllShortest(l):
+    minlist = []
+    minlist.append(l[0])
+    
+    for i in range(1, len(l)):
+        if len(l[i]) < len(minlist[0]):
+            minlist.clear()
+            minlist.append(l[i])
+        elif len(l[i]) == len(minlist[0]):
+            minlist.append(l[i])
+            
+    return minlist
+
 class cell(pg3d.cube):
     def __init__(self, center, sidelength, color, number):
         super().__init__(center, sidelength, color)
@@ -150,6 +171,7 @@ class bot(player):
         possibleOffMoves = []
         cell = -1
         
+        print("defensive moves")
         for p in self.parentBoard.playerlist: #defensive move
             for d in range(1, self.difficulty + 1):
                 for m in p.getWinningSequences(d):
@@ -159,30 +181,36 @@ class bot(player):
                         
                 if possibleDefMoves: #break so we address more pressing defensive moves first
                     break
-                    
+        
+        print("offensive moves")
         for d in range(1, self.difficulty + 1):
             for m in self.getWinningSequences(d):
                 if m not in possibleOffMoves:
                     possibleOffMoves.append(m)
-                        
+                    print(m)
+                    
             if possibleOffMoves:
                 break
                 
         if possibleDefMoves and possibleOffMoves:
-            if (len(possibleDefMoves[0]) < len(possibleOffMoves[0])): #make defensive move if opponent is closer to winning
-                cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+            if (len(getShortest(possibleDefMoves)) < len(getShortest(possibleOffMoves))): #make defensive move if opponent is closer to winning
+                #cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+                clist = getAllShortest(possibleDefMoves)
+                cell = clist[random.randint(0, len(clist) - 1)][random.randint(0, len(getShortest(possibleDefMoves)) - 1)]#take the shortest defensive move sequence
             else:
-                cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][0]
+                cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][random.randint(0, len(getShortest(possibleOffMoves)) - 1)]
         elif possibleDefMoves:
-            cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+            #cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+            clist = getAllShortest(possibleDefMoves)
+            cell = clist[random.randint(0, len(clist) - 1)][random.randint(0, len(getShortest(possibleDefMoves)) - 1)]
         elif possibleOffMoves:
-            cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][0]
+            cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][random.randint(0, len(getShortest(possibleOffMoves)) - 1)]
         else: #random move
             validMoves = self.parentBoard.getValidMoves()
             cell = validMoves[random.randint(0, len(validMoves) - 1)]
             
         self.makeMove(cell)
-
+        print("Chosen move: {}".format(cell))
         return int(log(cell, 2))
         
         
@@ -192,7 +220,6 @@ class board:
         self.playerlist = playerlist #list of player objects
         self.currentPlayer = playerlist[currPlayerNum]
         self.boardstate = 0x0
-        self.children = [] #list of child boards for bot tree search
         
         for p in self.playerlist:
             p.parentBoard = self
@@ -213,19 +240,6 @@ class board:
             self.currentPlayer = self.playerlist[0]
         else:
             self.currentPlayer = self.playerlist[self.playerlist.index(self.currentPlayer) + 1]
-            
-    '''
-    def createChildTree(self, depth): #create a tree of all possible moves out to n depth
-        if depth > 0:
-            for n in range(64):
-                if not self.testState(1 << n): #if move is valid
-                    #print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
-                    self.children.append(self.copy())
-                    self.children[-1].currentPlayer.makeMove(1 << n) #copy current board state but make the move, thereby advancing the game by 1
-                    self.children[-1].gotoNextPlayer() #advance to the next player
-                    self.children[-1].createChildTree(depth - 1) #recur
-                    #print("depth: {}, cell: {}, player: {}".format(depth, n, self.currentPlayer.name))
-    '''    
     
     def testState(self, teststate):
         return teststate & self.boardstate == teststate #if bit pattern is in board state

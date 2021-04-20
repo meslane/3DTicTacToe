@@ -4,6 +4,7 @@ import struct
 import sys
 import time
 import random
+import threading
 
 import pg3d
 import gui
@@ -54,6 +55,28 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
     locked = True
     run = True
     winner = None
+    
+    def doBotLogic():
+        nonlocal run
+        nonlocal winner
+        
+        while run:
+            time.sleep(0.1)
+            if ttt.currentPlayer.type == 1 and winner == None: #if it is a bot's turn
+                cellNum = ttt.currentPlayer.doBlockingMove()
+                blist[cellNum].occupied = True
+                blist[cellNum].changeColor(ttt.currentPlayer.color)
+                
+                if ttt.testWin():
+                    winner = ttt.currentPlayer
+                
+                ttt.gotoNextPlayer()
+                    
+            if ttt.boardstate == 0xffffffffffffffff and winner == None:
+                winner = False
+        
+    logicThread = threading.Thread(target = doBotLogic)
+    logicThread.start()
     while run == True:
         startloop = time.time()
     
@@ -70,7 +93,6 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
             if m[1] != 0 and abs(m[1]) < 300:
                 cam.orientation[0] -= radians(m[1]/10)
         
-    
         for event in pygame.event.get(): #pygame event detection
             if event.type == pygame.QUIT:
                 run = False
@@ -114,57 +136,34 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if locked and winner == None:
                     plist = []
-                    
+                        
                     for p in s.polygons: #get closest polygon to mouse
                         if p.insidePolygon2D(s.camera, mxcenter, mycenter, (mxcenter,mycenter)):
-                           plist.append(p)
-                           
+                            plist.append(p)
+                               
                     plist.sort(key = lambda x: x.getDistance(s.camera))
-                    
+                        
                     if plist and ttt.currentPlayer.type == 0: #if it is a human's turn
                         #validmove = ttt.makeMove(usernum, plist[0].parent.numToBin())
                         validmove = ttt.currentPlayer.makeMove(plist[0].parent.numToBin())
-                        
+                            
                         if validmove:
                             plist[0].parent.changeColor(ttt.currentPlayer.color)
                             plist[0].parent.occupied = True
-                            
+                                
                             if ttt.testWin():
                                 winner = ttt.currentPlayer
-                                
+                                    
                             #print(ttt.currentPlayer.getWinningSequences(2))
-                            '''
-                            if usernum == len(ttt.playerlist) - 1:
-                                usernum = 0
-                            else:
-                                usernum += 1
-                            '''
                             ttt.gotoNextPlayer()
-                                
+                                    
                 else:
                     locked = True
                     pygame.mouse.set_visible(False)
                     pygame.event.set_grab(True)
-                    
-        
-        if ttt.currentPlayer.type == 1 and winner == None: #if it is a bot's turn
-            cellNum = ttt.currentPlayer.doBlockingMove()
-            blist[cellNum].occupied = True
-            blist[cellNum].changeColor(ttt.currentPlayer.color)
-            
-            if ttt.testWin():
-                winner = ttt.currentPlayer
-            
-            '''
-            if usernum == len(ttt.playerlist) - 1:
-                usernum = 0
-            else:
-                usernum += 1
-            '''
-            ttt.gotoNextPlayer()
-                
-        if ttt.boardstate == 0xffffffffffffffff and winner == None:
-            winner = False
+    
+            if ttt.boardstate == 0xffffffffffffffff and winner == None:
+                winner = False
         
         #apply camera translation
         s.camera.position.z += motionMatrix["forward"] * cos(cam.orientation[1])
@@ -222,16 +221,8 @@ def main(argv):
     
     while True:
         #ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
-        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255), 3), game.bot("Player 3", (0,255,0), 2)], 0)
+        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255), 3)], 0)
         runGame(screen, ttt, pfont, bfont, cam)
-    
-    '''    
-    ttt = game.board([game.bot("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
-    print("start tree creation")
-    #ttt.boardstate = 0x12839120faf
-    print(ttt.createChildTree(3))
-    print("finish tree creation")
-    '''
 
 if __name__ == "__main__":
     main(sys.argv)
