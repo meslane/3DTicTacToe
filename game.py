@@ -111,7 +111,7 @@ class player:
                     
         return tuple(moves)
         
-    def getWinningSequencesAtDepth(self, depth): #get all sequences of n length that will result in a win
+    def getWinningSequences(self, depth): #get all sequences of n length that will result in a win
         moves = []
         winningMoves = []
         
@@ -133,9 +133,10 @@ class player:
         return winningMoves
                 
 class bot(player):
-    def __init__(self, name, color):
+    def __init__(self, name, color, difficulty):
         super().__init__(name, color)
         self.type = 1
+        self.difficulty = difficulty #0 = random, 1-3 = n move look ahead
         
     def doRandomMove(self):
         attemptCell = random.randint(0,63)
@@ -145,23 +146,43 @@ class bot(player):
         return attemptCell
         
     def doBlockingMove(self):
-        possibleMoves = []
+        possibleDefMoves = []
+        possibleOffMoves = []
         cell = -1
         
-        for p in self.parentBoard.playerlist:
-            for m in p.getWinningMoves():
-                if m not in possibleMoves:
-                    possibleMoves.append(m)
+        for p in self.parentBoard.playerlist: #defensive move
+            for d in range(1, self.difficulty + 1):
+                for m in p.getWinningSequences(d):
+                    if m not in possibleDefMoves:
+                        possibleDefMoves.append(m)
+                        print(m)
+                        
+                if possibleDefMoves: #break so we address more pressing defensive moves first
+                    break
                     
-        if possibleMoves:
-            cell = possibleMoves[0]
-        else:
-            vmoves = self.parentBoard.getValidMoves()
-            cell = vmoves[random.randint(0, len(vmoves) - 1)]
+        for d in range(1, self.difficulty + 1):
+            for m in self.getWinningSequences(d):
+                if m not in possibleOffMoves:
+                    possibleOffMoves.append(m)
+                        
+            if possibleOffMoves:
+                break
+                
+        if possibleDefMoves and possibleOffMoves:
+            if (len(possibleDefMoves[0]) < len(possibleOffMoves[0])): #make defensive move if opponent is closer to winning
+                cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+            else:
+                cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][0]
+        elif possibleDefMoves:
+            cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+        elif possibleOffMoves:
+            cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][0]
+        else: #random move
+            validMoves = self.parentBoard.getValidMoves()
+            cell = validMoves[random.randint(0, len(validMoves) - 1)]
             
         self.makeMove(cell)
-        
-        print(cell)
+
         return int(log(cell, 2))
         
         

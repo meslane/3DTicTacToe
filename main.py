@@ -4,6 +4,7 @@ import struct
 import sys
 import time
 import random
+from multiprocessing import Process
 
 import pg3d
 import gui
@@ -132,7 +133,7 @@ def runGame(screen, ttt, pfont, bfont, cam): #ttt is the board object
                             if ttt.testWin():
                                 winner = ttt.currentPlayer
                                 
-                            print(ttt.currentPlayer.getWinningSequencesAtDepth(3))
+                            #print(ttt.currentPlayer.getWinningSequences(2))
                             '''
                             if usernum == len(ttt.playerlist) - 1:
                                 usernum = 0
@@ -221,7 +222,8 @@ def main(argv):
     
     
     while True:
-        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
+        #ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255)), game.bot("Player 3", (0,255,0)), game.bot("Player 4", (255,255,0))], 0)
+        ttt = game.board([game.player("Player 1", (255,0,0)), game.bot("Player 2", (0,0,255), 3)], 0)
         runGame(screen, ttt, pfont, bfont, cam)
     
     '''    
