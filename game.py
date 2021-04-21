@@ -193,14 +193,15 @@ class bot(player):
         print(self.name)
         print("defensive moves")
         for p in self.parentBoard.playerlist: #defensive move
-            for d in range(1, self.difficulty + 1):
-                for m in p.getWinningSequences(d):
-                    if m not in possibleDefMoves:
-                        possibleDefMoves.append(m)
-                        print(m)
-                        
-                if possibleDefMoves: #break so we address more pressing defensive moves first
-                    break
+            if p != self:
+                for d in range(1, self.difficulty + 1):
+                    for m in p.getWinningSequences(d):
+                        if m not in possibleDefMoves:
+                            possibleDefMoves.append(m)
+                            print(m)
+                            
+                    if possibleDefMoves: #break so we address more pressing defensive moves first
+                        break
         
         print("offensive moves")
         for d in range(1, self.difficulty + 1):
