@@ -5,6 +5,7 @@ import sys
 import time
 import random
 import copy
+from collections import Counter
 
 import pg3d
 
@@ -44,6 +45,24 @@ def getAllShortest(l):
             minlist.append(l[i])
             
     return minlist
+    
+def randomInList(l):
+    return l[random.randint(0, len(l) - 1)]
+    
+def getMostCommon(l): #sorts the list by number of occurances and returns a random of the most common
+    singlelist = sum(l, [])
+    validMoves = []
+    
+    c = Counter(singlelist)
+    
+    if c:
+        count = max(list(c.values()))
+        
+        for key in c:
+            if c[key] == count:
+                validMoves.append(key)
+    
+    return validMoves
 
 class cell(pg3d.cube):
     def __init__(self, center, sidelength, color, number):
@@ -171,6 +190,7 @@ class bot(player):
         possibleOffMoves = []
         cell = -1
         
+        print(self.name)
         print("defensive moves")
         for p in self.parentBoard.playerlist: #defensive move
             for d in range(1, self.difficulty + 1):
@@ -190,27 +210,33 @@ class bot(player):
                     print(m)
                     
             if possibleOffMoves:
-                break
-                
+                break      
+        
         if possibleDefMoves and possibleOffMoves:
             if (len(getShortest(possibleDefMoves)) < len(getShortest(possibleOffMoves))): #make defensive move if opponent is closer to winning
-                #cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+                '''
                 clist = getAllShortest(possibleDefMoves)
                 cell = clist[random.randint(0, len(clist) - 1)][random.randint(0, len(getShortest(possibleDefMoves)) - 1)]#take the shortest defensive move sequence
+                '''
+                cell = randomInList(getMostCommon(getAllShortest(possibleDefMoves)))
             else:
-                cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][random.randint(0, len(getShortest(possibleOffMoves)) - 1)]
+                #cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][random.randint(0, len(getShortest(possibleOffMoves)) - 1)]
+                cell = randomInList(getMostCommon(getAllShortest(possibleOffMoves)))
         elif possibleDefMoves:
-            #cell = possibleDefMoves[random.randint(0, len(possibleDefMoves) -1)][0]
+            '''
             clist = getAllShortest(possibleDefMoves)
             cell = clist[random.randint(0, len(clist) - 1)][random.randint(0, len(getShortest(possibleDefMoves)) - 1)]
+            '''
+            cell = randomInList(getMostCommon(getAllShortest(possibleDefMoves)))
         elif possibleOffMoves:
-            cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][random.randint(0, len(getShortest(possibleOffMoves)) - 1)]
+            #cell = possibleOffMoves[random.randint(0, len(possibleOffMoves) -1)][random.randint(0, len(getShortest(possibleOffMoves)) - 1)]
+            cell = randomInList(getMostCommon(getAllShortest(possibleOffMoves)))
         else: #random move
             validMoves = self.parentBoard.getValidMoves()
             cell = validMoves[random.randint(0, len(validMoves) - 1)]
             
         self.makeMove(cell)
-        print("Chosen move: {}".format(cell))
+        print("Chosen move: {}\n".format(cell))
         return int(log(cell, 2))
         
         
